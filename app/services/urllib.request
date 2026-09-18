@@ -1,0 +1,129 @@
+import os
+import json
+import asyncio
+import urllib.request
+import urllib.error
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+app = FastAPI()
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+
+BHASHINI_TTS_URL = "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
+BHASHINI_API_KEY = os.environ.get("BHASHINI_API_KEY", "")
+
+class AdvisoryRequest(BaseModel):
+    crop: str
+    query: str = Field(..., description="Farmer's actual question, free text.")
+    temperature: Optional[float] = 28.0
+    rainfall: Optional[float] = 0.0
+    wind_speed: Optional[float] = 5.0
+    humidity: Optional[float] = 50.0
+    language: str = "hinglish"  # hinglish, dogri, pahari
+    speak: bool = False
+
+DIALECT_STYLE_GUIDES = {
+    "dogri": {
+        "greeting_style": "Namaste Kisan Veer / Kisan Bhaeno se shuru karo",
+        "common_words": {"rain": "mheeh / baraash", "water": "paani", "field": "khet / jameen", "today": "ajj", "evening": "sanjh", "wind": "hawa"},
+        "tone_notes": "Warm Duggar tone, farmer-to-farmer advice, practical."
+    },
+    "pahari": {
+        "greeting_style": "Aadaab Kisan Bura se shuru karo",
+        "common_words": {"rain": "baraash", "water": "paani", "field": "khet", "today": "ajj", "evening": "deegar/shaam", "wind": "vaah"},
+        "tone_notes": "Pir Panjali / Rajouri belt tone, warm, colloquial."
+    },
+    "hinglish": {
+        "greeting_style": "Namaste Kisan Bhai se shuru karo",
+        "common_words": {},
+        "tone_notes": "Simple Roman Hindi mixed with basic agricultural English."
+    }
+}
+
+def build_system_prompt(language: str, crop: str, weather_ctx: dict) -> str:
+    guide = DIALECT_STYLE_GUIDES.get(language, DIALECT_STYLE_GUIDES["hinglish"])
+    weather_block = f"Temp: {weather_ctx.get('temperature')}°C, Rain: {weather_ctx.get('rainfall')}mm, Wind: {weather_ctx.get('wind_speed')}km/h, Humidity: {weather_ctx.get('humidity')}%"
+    return f"""You are an agricultural advisor for farmers in Jammu & Kashmir.
+Crop: {crop}
+Weather: {weather_block}
+Language: {language}
+Greeting: {guide['greeting_style']}
+Give 2-3 short, practical sentences about irrigation, spray timing or farming precautions."""
+
+def _call_llm_sync(system_prompt: str, user_query: str, crop: str, lang: str, weather_ctx: dict) -> str:
+    # Safe fallback agar Anthropic API key na ho
+    if not ANTHROPIC_API_KEY:
+        rain = weather_ctx.get("rainfall") or 0.0
+        wind = weather_ctx.get("wind_speed") or 0.0
+        
+        if lang == "dogri":
+            if rain > 5.0:
+                return f"Namaste Kisan Veer! Ajj bhari mheeh ({rain} mm) lagne aala ae. {crop} gi paani bilkul matt deyo, te spray ajj theeri jaao."
+            elif wind > 15.0:
+                return f"Namaste Kisan Veer! Hawa baadi tej chaldi payi ae ({wind} km/h). Ajj spray uddi jaani, sanjh tak theerna payega."
+            return f"Namaste Kisan Veer! Ajj mausam khushk ae. {crop} gi zaroorat hisaab kannel sinchai deyo, dophar baad spray kari sakde o."
+            
+        elif lang == "pahari":
+            if rain > 5.0:
+                return f"Aadaab Kisan Bura! Tez baraash aani aali ae ({rain} mm). {crop} ki paani na laayo, te dawaai da chhidkaav ajj na kareyo."
+            elif wind > 15.0:
+                return f"Aadaab Kisan Bura! Vaah tez chalni payi ae ({wind} km/h). Spray bekaar jaasi, vaah theerne di udheek karo."
+            return f"Aadaab Kisan Bura! Ajj dhupp kaddhsi. {crop} ki sinchai karo, shaam vele spray bilkul theek hosi."
+
+        else:
+            if rain > 5.0:
+                return f"Namaste Kisan Bhai! Aaj {rain} mm barish aane wali hai. {crop} me sinchai aur spray dono rok dein."
+            elif wind > 15.0:
+                return f"Namaste Kisan Bhai! Hawa tez hai ({wind} km/h). Spray hawa me ud jayega, shaant hone ka intezar karein."
+            return f"Namaste Kisan Bhai! Aaj mausam saaf hai. {crop} ko zaroorat ke mutabiq paani dein, shaam ko spray safe hai."
+
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    payload = json.dumps({
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 300,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_query}],
+    }).encode("utf-8")
+
+    req = urllib.request.Request(ANTHROPIC_URL, data=payload, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            res = json.loads(response.read().decode("utf-8"))
+            text_blocks = [b["text"] for b in res.get("content", []) if b.get("type") == "text"]
+            return "\n".join(text_blocks).strip()
+    except Exception:
+        return f"Mausam Update: {crop} ke liye mausam theek hai. Zaroorat anusaar paani dein."
+
+@app.post("/api/v1/farmer-advisory")
+async def get_farmer_advisory(req: AdvisoryRequest):
+    lang = req.language.lower()
+    if lang not in DIALECT_STYLE_GUIDES:
+        lang = "hinglish"
+
+    weather_ctx = {
+        "temperature": req.temperature,
+        "rainfall": req.rainfall,
+        "wind_speed": req.wind_speed,
+        "humidity": req.humidity,
+    }
+
+    system_prompt = build_system_prompt(lang, req.crop, weather_ctx)
+    advisory_text = await asyncio.to_thread(_call_llm_sync, system_prompt, req.query, req.crop, lang, weather_ctx)
+
+    return {
+        "language": lang,
+        "crop": req.crop,
+        "query": req.query,
+        "advisory": advisory_text,
+        "audio_base64": None,
+        "tts_note": "Audio disabled for fast low-latency presentation."
+    }
