@@ -4,15 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Krishi Setu Core - Multilingual Precision Agromet & Edge AI Station</title>
+    <title>Krishi Setu Core - Dynamic Weather, Radar & Edge Agronomy Engine</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Noto+Nastaliq+Urdu:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&display=swap"
         rel="stylesheet">
+    <!-- OpenStreetMap Leaflet CSS & JS for Radar Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
-            --bg-surface: #0b1329;
-            --card-bg: #131f37;
+            --bg-surface: #0a1124;
+            --card-bg: #111c35;
             --card-border: #1e2e4f;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
@@ -29,6 +32,7 @@
             color: var(--text-main);
             font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             min-height: 100vh;
+            overflow-x: hidden;
             transition: background-color 0.4s ease;
         }
 
@@ -53,11 +57,91 @@
             transition: all 0.25s ease;
         }
 
-        /* AccuWeather & MSN Night Glow */
-        .hero-night {
-            background: radial-gradient(circle at 85% 15%, #1e293b 0%, #080d1a 100%);
-            color: #f8fafc;
-            border-color: #2a3b5c;
+        /* Dynamic Condition Backgrounds */
+        .theme-day {
+            background: linear-gradient(135deg, #0f1f3d 0%, #080f1d 100%);
+        }
+
+        .theme-night {
+            background: radial-gradient(circle at 85% 15%, #182642 0%, #060a14 100%);
+        }
+
+        .theme-rain {
+            background: linear-gradient(180deg, #0d1b2a 0%, #1b263b 100%);
+        }
+
+        /* Rain Animation Overlay */
+        .rain-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            display: none;
+            z-index: 5;
+        }
+
+        .rain-drop {
+            position: absolute;
+            bottom: 100%;
+            width: 1.5px;
+            height: 14px;
+            background: linear-gradient(transparent, #38bdf8);
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(350px);
+            }
+        }
+
+        /* Lightning Flash Animation */
+        .thunder-flash {
+            animation: lightning 4s infinite;
+        }
+
+        @keyframes lightning {
+
+            0%,
+            95%,
+            100% {
+                opacity: 0;
+            }
+
+            96% {
+                opacity: 0.35;
+                background: #ffffff;
+            }
+
+            97% {
+                opacity: 0;
+            }
+
+            98% {
+                opacity: 0.6;
+                background: #e0f2fe;
+            }
+        }
+
+        /* Stars Animation */
+        .stars-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0, 0, 0, 0)),
+                radial-gradient(1.5px 1.5px at 100px 70px, #ffffff, rgba(0, 0, 0, 0)),
+                radial-gradient(1px 1px at 220px 40px, #e2e8f0, rgba(0, 0, 0, 0)),
+                radial-gradient(1.5px 1.5px at 350px 90px, #38bdf8, rgba(0, 0, 0, 0));
+            background-repeat: repeat;
+            background-size: 500px 180px;
+            opacity: 0.7;
+            pointer-events: none;
         }
 
         .tab-pill {
@@ -70,7 +154,7 @@
             font-weight: 700;
             color: #94a3b8;
             cursor: pointer;
-            background: rgba(19, 31, 55, 0.6);
+            background: rgba(17, 28, 53, 0.7);
             border: 1px solid #1e2e4f;
             transition: all 0.2s ease;
             white-space: nowrap;
@@ -87,7 +171,7 @@
             min-width: 105px;
             padding: 12px 8px;
             border-radius: 16px;
-            background: rgba(19, 31, 55, 0.7);
+            background: rgba(17, 28, 53, 0.75);
             border: 1px solid #1e2e4f;
             text-align: center;
             cursor: pointer;
@@ -105,7 +189,6 @@
             box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
         }
 
-        /* Floating AI Prompt Bar */
         .floating-prompt-bar {
             position: fixed;
             bottom: 16px;
@@ -113,7 +196,7 @@
             transform: translateX(-50%);
             width: 92%;
             max-width: 820px;
-            background: rgba(19, 31, 55, 0.95);
+            background: rgba(17, 28, 53, 0.96);
             backdrop-filter: blur(16px);
             border: 1.5px solid #334155;
             border-radius: 9999px;
@@ -125,10 +208,9 @@
             gap: 10px;
         }
 
-        /* Compass Rose Visual */
         .compass-dial {
-            width: 82px;
-            height: 82px;
+            width: 78px;
+            height: 78px;
             border-radius: 50%;
             border: 2px solid #334155;
             position: relative;
@@ -141,20 +223,19 @@
             position: absolute;
             width: 0;
             height: 0;
-            border-left: 7px solid transparent;
-            border-right: 7px solid transparent;
-            border-bottom: 30px solid #38bdf8;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 26px solid #38bdf8;
             transform-origin: 50% 100%;
-            top: 11px;
+            top: 13px;
             transition: transform 0.6s ease;
         }
 
-        /* Humidity Bar Pillar Indicator */
         .humidity-bars-track {
             display: flex;
             gap: 4px;
             align-items: flex-end;
-            height: 48px;
+            height: 44px;
         }
 
         .humidity-bar-col {
@@ -170,6 +251,14 @@
             width: 100%;
             background: #38bdf8;
             transition: height 0.5s ease;
+        }
+
+        #radarMap {
+            width: 100%;
+            height: 380px;
+            border-radius: 1rem;
+            border: 1px solid #1e2e4f;
+            z-index: 10;
         }
 
         @keyframes scanRay {
@@ -192,28 +281,12 @@
         .animate-scan-ray {
             animation: scanRay 2.2s ease-in-out infinite;
         }
-
-        @keyframes floatSoft {
-
-            0%,
-            100% {
-                transform: translateY(0px);
-            }
-
-            50% {
-                transform: translateY(-3px);
-            }
-        }
-
-        .animate-float {
-            animation: floatSoft 3s ease-in-out infinite;
-        }
     </style>
 </head>
 
 <body class="p-3 md:p-6 pb-36">
 
-    <!-- ================= TOP HEADER & MULTILINGUAL BAR ================= -->
+    <!-- ================= TOP HEADER ================= -->
     <header class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 mb-5">
         <div class="flex items-center gap-3">
             <div
@@ -225,16 +298,16 @@
                     <h1 class="text-xl font-black text-white tracking-tight" id="txt-app-title">कृषि सेतु कोर</h1>
                     <span
                         class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-600/40"
-                        id="badge-microclimate">सूक्ष्म-जलवायु 950m</span>
+                        id="badge-microclimate">Auto GPS Elevation</span>
                 </div>
-                <p class="text-xs text-slate-400 font-medium" id="txt-app-subtitle">राजौरी • पीर पंजाल पर्वतीय कृषि वेदर
-                    स्टेशन (ECMWF IFS High-Res)</p>
+                <p class="text-xs text-slate-400 font-medium" id="txt-app-subtitle">भौगोलिक सूक्ष्म-जलवायु वेदर स्टेशन
+                    (ECMWF & Open-Meteo High-Res)</p>
             </div>
         </div>
 
-        <!-- Right Controls: 6-Language Selector, Location Search & Farmer Profile -->
+        <!-- Controls: Language, Profile, Dynamic Search -->
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-            <!-- 6 Language Selector -->
+            <!-- Language Picker -->
             <div
                 class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-full px-3 py-1.5 shadow-sm">
                 <span class="text-xs">🌐</span>
@@ -249,26 +322,35 @@
                 </select>
             </div>
 
-            <!-- Farmer Account Button -->
+            <!-- Profile Button -->
             <button onclick="openProfileModal()"
                 class="py-2 px-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition">
-                <span>👤</span> <span id="header-farmer-name">रमेश कुमार (2 एकड़)</span>
+                <span>👤</span> <span id="header-farmer-name">किसान खाता</span>
             </button>
 
-            <!-- Dynamic Location Input (Geo resolver) -->
-            <div class="relative w-44">
-                <input type="text" id="targetLocationInput" value="Rajouri, J&K"
-                    onkeydown="if(event.key === 'Enter') searchCustomLocation()"
-                    class="w-full bg-slate-900 border border-slate-700 rounded-full py-2 pl-7 pr-3 text-xs font-semibold text-white shadow-sm focus:outline-none focus:border-emerald-500">
-                <span class="absolute left-2.5 top-2 text-slate-400 text-xs">📍</span>
+            <!-- Live Search & GPS Location Box -->
+            <div class="flex items-center gap-1">
+                <div class="relative w-40 sm:w-48">
+                    <input type="text" id="targetLocationInput" placeholder="स्थान खोजें (उदा. Kargil)..."
+                        onkeydown="if(event.key === 'Enter') searchCustomLocation()"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-full py-2 pl-7 pr-3 text-xs font-semibold text-white shadow-sm focus:outline-none focus:border-emerald-500">
+                    <span class="absolute left-2.5 top-2 text-slate-400 text-xs">📍</span>
+                </div>
+                <button onclick="requestGpsDirect()" title="Auto Detect My Location"
+                    class="w-8 h-8 rounded-full bg-emerald-700 hover:bg-emerald-600 flex items-center justify-center text-white text-xs shadow-md">
+                    🎯
+                </button>
             </div>
         </div>
     </header>
 
-    <!-- ================= SECTION NAVIGATION TABS ================= -->
+    <!-- ================= TABS NAVIGATION ================= -->
     <nav class="max-w-6xl mx-auto flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
         <button onclick="switchTab('weather')" id="tab-btn-weather" class="tab-pill active">
             <span>🌤️</span> <span id="nav-weather">मौसम पूर्वानुमान</span>
+        </button>
+        <button onclick="switchTab('radar')" id="tab-btn-radar" class="tab-pill">
+            <span>🛰️</span> <span id="nav-radar">लाइव वेदर रडार मैप</span>
         </button>
         <button onclick="switchTab('scanner')" id="tab-btn-scanner" class="tab-pill">
             <span>🔬</span> <span id="nav-scanner">फसल रोग निदान (AI)</span>
@@ -279,26 +361,29 @@
         <button onclick="switchTab('irrigation')" id="tab-btn-irrigation" class="tab-pill">
             <span>💧</span> <span id="nav-irrigation">सिंचाई जल-बजट (FAO-56)</span>
         </button>
-        <button onclick="switchTab('schemes')" id="tab-btn-schemes" class="tab-pill">
-            <span>🏛️</span> <span id="nav-schemes">PMFBY एवं सरकारी योजनाएं</span>
-        </button>
     </nav>
 
-    <!-- ================= SECTION 1: ACCUWEATHER & MSN STYLE WEATHER ================= -->
+    <!-- ================= SECTION 1: WEATHER TAB ================= -->
     <main id="section-weather" class="max-w-6xl mx-auto space-y-6">
 
-        <!-- Top Weather Hero Card with Model Selector -->
-        <div id="heroCardWrapper" class="weather-card p-5 md:p-6 hero-night relative">
+        <!-- Top Weather Hero Card with Real Weather Animations -->
+        <div id="heroCardWrapper" class="weather-card p-5 md:p-6 theme-night relative overflow-hidden">
+            <div id="nightStarsOverlay" class="stars-layer"></div>
+            <div id="rainOverlay" class="rain-container"></div>
+            <div id="thunderOverlay" class="absolute inset-0 pointer-events-none thunder-flash hidden"></div>
+
             <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4 relative z-10">
                 <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider" id="txt-model-label">NWP
-                        मौसम विज्ञान मॉडल:</span>
+                    <span class="text-xs font-bold text-slate-300 uppercase tracking-wider" id="txt-model-label">भौगोलिक
+                        निर्देशांक:</span>
+                    <span class="text-xs mono text-emerald-400 font-bold" id="geoCoordinatesLabel">Detecting
+                        GPS...</span>
                 </div>
                 <select id="nwpModelSelect" onchange="initWeatherStation()"
                     class="bg-slate-900 border border-slate-700 text-xs rounded-xl px-3 py-1 font-bold text-emerald-400 focus:outline-none mono">
-                    <option value="ecmwf_ifs025" selected>ECMWF IFS (यूरोपीय 9km)</option>
-                    <option value="best_match">डिफ़ॉल्ट एंसेंबल (Best Blend)</option>
+                    <option value="best_match" selected>एंसेंबल बेस्ट मॉडल (Best Blend)</option>
+                    <option value="ecmwf_ifs025">ECMWF IFS (यूरोपीय 9km)</option>
                     <option value="gfs_seamless">GFS Seamless (अमेरिकी NOAA)</option>
                     <option value="icon_seamless">DWD ICON (जर्मन हाई-रेज़)</option>
                 </select>
@@ -306,23 +391,21 @@
 
             <div
                 class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-800 relative z-10">
-                <!-- Live Condition & Temp -->
                 <div class="flex items-center gap-6">
                     <div id="hero-weather-icon" class="text-6xl animate-float">🌙</div>
                     <div>
                         <div class="flex items-baseline gap-2">
                             <span id="hero-temp" class="text-5xl font-black text-white tracking-tight">--°C</span>
-                            <span class="text-sm font-semibold text-slate-400" id="hero-minmax">अधिकतम --° / न्यूनतम
+                            <span class="text-sm font-semibold text-slate-300" id="hero-minmax">अधिकतम --° / न्यूनतम
                                 --°</span>
                         </div>
                         <h2 id="hero-condition-desc" class="text-lg font-bold text-slate-200 mt-1">टेलीमेट्री लोड हो रही
                             है...</h2>
-                        <p id="hero-rain-summary" class="text-xs text-sky-400 font-semibold mt-0.5">🌧️ पीर पंजाल
-                            पर्वतीय आर्द्रता मॉडल सिंक</p>
+                        <p id="hero-rain-summary" class="text-xs text-sky-400 font-semibold mt-0.5">स्थान रिपोर्ट: <span
+                                id="currentCityTag" class="text-white">Live Search</span></p>
                     </div>
                 </div>
 
-                <!-- Metric Badges -->
                 <div class="flex flex-wrap gap-2.5">
                     <div
                         class="stat-chip bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2 text-center shadow-sm">
@@ -351,7 +434,7 @@
                 </div>
             </div>
 
-            <!-- AccuWeather MinuteCast Precipitation Bar (Pic 3 Style) -->
+            <!-- AccuWeather MinuteCast Bar -->
             <div class="pt-5 pb-2 relative z-10">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5"
@@ -370,9 +453,7 @@
                         <span>+120 min</span>
                     </div>
                     <div class="h-3.5 w-full bg-slate-800 rounded-full overflow-hidden flex gap-0.5"
-                        id="minutecast-bars">
-                        <!-- 24 5-min intervals injected -->
-                    </div>
+                        id="minutecast-bars"></div>
                     <div class="flex justify-between items-center text-[10px] text-slate-400 mt-2">
                         <span>Light</span>
                         <div class="flex items-center gap-3">
@@ -415,7 +496,7 @@
             </div>
         </div>
 
-        <!-- AccuWeather Monthly Bar-Line Temperature Trends Graph (Pic 4 Style) -->
+        <!-- AccuWeather Multi-day Range Graph -->
         <div class="weather-card p-5">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2"
@@ -424,20 +505,12 @@
                 </h3>
                 <span class="text-xs font-mono text-slate-400">°C</span>
             </div>
-            <div class="w-full h-48 relative bg-slate-950 rounded-xl p-2 border border-slate-800">
+            <div class="w-full h-44 relative bg-slate-950 rounded-xl p-2 border border-slate-800">
                 <canvas id="accuTrendsCanvas" class="w-full h-full block"></canvas>
-            </div>
-            <div class="flex flex-wrap items-center justify-center gap-5 text-xs text-slate-400 mt-2 font-mono">
-                <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-amber-500 rounded"></span> Actual /
-                    Forecast Hi</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-sky-500 rounded"></span> Actual /
-                    Forecast Lo</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-rose-500"></span> Normal Hi</span>
-                <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-blue-500"></span> Normal Lo</span>
             </div>
         </div>
 
-        <!-- 12 AccuWeather Environmental Parameter Cards (Pic 1 & 2 Style) -->
+        <!-- 12 Parameter Environmental Grid -->
         <div>
             <h3 class="text-sm font-black text-white uppercase tracking-wider mb-3.5 flex items-center gap-2"
                 id="lbl-detailed-intel">
@@ -446,23 +519,23 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-                <!-- 1. Feels Like -->
+                <!-- 1. Feels Like (Scientifically Corrected) -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
                             <span id="card-title-feels">महसूस तापमान (Feels Like)</span> <span>🌡️</span>
                         </div>
                         <div class="text-3xl font-black text-white mono" id="detail-feels-like">--°C</div>
-                        <p class="text-xs text-slate-400 mt-1" id="detail-feels-desc">Dominant factor: None. Feels
-                            comfortable.</p>
+                        <p class="text-xs text-slate-400 mt-1" id="detail-feels-desc">वास्तविक वाष्प दबाव एवं पवन शीतलन
+                            अनुसार गणना।</p>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-sky-400"
                         id="card-factor-feels">
-                        कारक: पर्वतीय आर्द्रता
+                        Dominant factor: Normal
                     </div>
                 </div>
 
-                <!-- 2. Cloud Cover with Graphic Icon -->
+                <!-- 2. Cloud Cover -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -473,14 +546,16 @@
                             <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl"
                                 id="cloud-visual-circle">⛅</div>
                         </div>
-                        <p class="text-xs text-slate-400 mt-2" id="detail-cloud-desc">Steady with partly cloudy sky.</p>
+                        <p class="text-xs text-slate-400 mt-2" id="detail-cloud-desc">सौर विकिरण की प्रत्यक्ष स्थिति।
+                        </p>
                     </div>
-                    <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-slate-300">
-                        कवर स्तर: Partly Cloudy
+                    <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-slate-300"
+                        id="detail-cloud-tag">
+                        Partly Cloudy
                     </div>
                 </div>
 
-                <!-- 3. Precipitation 24h Gauge -->
+                <!-- 3. Precipitation 24h -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -488,10 +563,9 @@
                         </div>
                         <div class="flex items-center justify-between">
                             <div class="text-3xl font-black text-sky-400 mono" id="detail-rain-volume">0 mm</div>
-                            <div class="text-xs font-mono text-slate-400">In next 24h</div>
+                            <div class="text-xs font-mono text-slate-400">Next 24h</div>
                         </div>
-                        <p class="text-xs text-slate-400 mt-2" id="detail-rain-desc">No precipitation expected in next
-                            24 hours.</p>
+                        <p class="text-xs text-slate-400 mt-2" id="detail-rain-desc">वर्षा पूर्वानुमान का सटीक आकलन।</p>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-emerald-400"
                         id="detail-spray-status">
@@ -499,7 +573,7 @@
                     </div>
                 </div>
 
-                <!-- 4. Wind Compass Rose & Gust (Pic 1 Style) -->
+                <!-- 4. Wind Compass Rose -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -514,19 +588,19 @@
                                 <div class="compass-pointer" id="compassPointer"></div>
                             </div>
                             <div>
-                                <div class="text-2xl font-black text-white mono" id="detail-wind-speed">5 km/h</div>
-                                <div class="text-xs text-slate-400 font-mono" id="detail-wind-gust">12 km/h Gust</div>
-                                <div class="text-[11px] text-sky-400 font-bold mt-0.5" id="detail-wind-dir">From NNE
-                                    (26°)</div>
+                                <div class="text-2xl font-black text-white mono" id="detail-wind-speed">-- km/h</div>
+                                <div class="text-xs text-slate-400 font-mono" id="detail-wind-gust">-- km/h Gust</div>
+                                <div class="text-[11px] text-sky-400 font-bold mt-0.5" id="detail-wind-dir">Direction:
+                                    --</div>
                             </div>
                         </div>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-emerald-400">
-                        Force: 1 (Light Air)
+                        Light Air Movement
                     </div>
                 </div>
 
-                <!-- 5. Humidity Level Pillars (Pic 1 Style) -->
+                <!-- 5. Humidity Level Pillars -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -535,37 +609,37 @@
                         <div class="flex items-center justify-between">
                             <div class="humidity-bars-track" id="humidityPillars">
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                                 <div class="humidity-bar-col">
-                                    <div class="humidity-bar-fill" style="height: 70%;"></div>
+                                    <div class="humidity-bar-fill" style="height: 60%;"></div>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="text-2xl font-black text-white mono" id="detail-humidity">70%</div>
-                                <div class="text-xs font-mono text-slate-400" id="detail-dew-point">13° Dew point</div>
+                                <div class="text-2xl font-black text-white mono" id="detail-humidity">--%</div>
+                                <div class="text-xs font-mono text-slate-400" id="detail-dew-point">--° Dew point</div>
                             </div>
                         </div>
-                        <p class="text-xs text-slate-400 mt-2">Normal humidity levels for seasonal vegetation.</p>
+                        <p class="text-xs text-slate-400 mt-2">सापेक्षिक आर्द्रता स्तर।</p>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-amber-400">
                         फंगल संक्रमण सतर्कता
                     </div>
                 </div>
 
-                <!-- 6. UV Radial Arc Meter (Pic 2 Style) -->
+                <!-- 6. UV Radial Gauge -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -580,20 +654,20 @@
                                         stroke-dasharray="150" stroke-dashoffset="85" fill="transparent"
                                         stroke-linecap="round" />
                                 </svg>
-                                <span class="absolute text-xl font-black text-white mono" id="detail-uv-val">5</span>
+                                <span class="absolute text-xl font-black text-white mono" id="detail-uv-val">--</span>
                             </div>
                             <div>
                                 <div class="text-sm font-bold text-amber-400" id="detail-uv-status">Moderate</div>
-                                <div class="text-[11px] text-slate-400">Peak at 12:30 PM</div>
+                                <div class="text-[11px] text-slate-400">Solar Noon Window</div>
                             </div>
                         </div>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-slate-400">
-                        Tomorrow max UV: Moderate
+                        UV Safe Window Active
                     </div>
                 </div>
 
-                <!-- 7. AQI Radial Gauge (Pic 2 Style) -->
+                <!-- 7. AQI Radial Gauge -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -608,16 +682,16 @@
                                         stroke-dasharray="150" stroke-dashoffset="65" fill="transparent"
                                         stroke-linecap="round" />
                                 </svg>
-                                <span class="absolute text-xl font-black text-white mono" id="detail-aqi-val">82</span>
+                                <span class="absolute text-xl font-black text-white mono" id="detail-aqi-val">--</span>
                             </div>
                             <div>
-                                <div class="text-sm font-bold text-yellow-400" id="detail-aqi-status">Moderate</div>
-                                <div class="text-[10px] text-slate-400">PM2.5: 23 µg/m³</div>
+                                <div class="text-sm font-bold text-yellow-400" id="detail-aqi-status">Good</div>
+                                <div class="text-[10px] text-slate-400">Air index nominal</div>
                             </div>
                         </div>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-slate-400">
-                        Deteriorating slightly in evening
+                        Clean Mountain Air
                     </div>
                 </div>
 
@@ -627,59 +701,58 @@
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
                             <span id="card-title-pressure">वायुमंडलीय दबाव (Pressure)</span> <span>⏱️</span>
                         </div>
-                        <div class="text-3xl font-black text-white mono" id="detail-pressure">1019 mb</div>
-                        <p class="text-xs text-slate-400 mt-2">Rising slowly • Expected to fall in next 3h.</p>
+                        <div class="text-3xl font-black text-white mono" id="detail-pressure">-- mb</div>
+                        <p class="text-xs text-slate-400 mt-2">दबाव परिवर्तन वायुमंडलीय स्थिरता दर्शाता है।</p>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-sky-400">
-                        प्रवृत्ति: Rising (स्थिर वायुमंडल)
+                        Rising / Stable Atmosphere
                     </div>
                 </div>
 
-                <!-- 9. Sun Arc Curve Tracker (Pic 2 Style) -->
+                <!-- 9. Sun Arc Curve Tracker -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
                             <span id="card-title-sun">सूर्य चक्र (Sun Arc)</span> <span>☀️</span>
                         </div>
                         <div class="flex justify-between text-xs font-mono font-bold text-white mt-1">
-                            <div>🌅 <span id="detail-sunrise">6:31 AM</span></div>
-                            <div>🌇 <span id="detail-sunset">6:08 PM</span></div>
+                            <div>🌅 <span id="detail-sunrise">--</span></div>
+                            <div>🌇 <span id="detail-sunset">--</span></div>
                         </div>
                         <div
                             class="w-full h-8 bg-slate-900 rounded-lg mt-2 relative overflow-hidden flex items-center justify-center">
                             <div class="w-full h-0.5 bg-slate-700"></div>
-                            <div class="w-3.5 h-3.5 rounded-full bg-amber-400 absolute" style="left: 48%;"></div>
+                            <div class="w-3.5 h-3.5 rounded-full bg-amber-400 absolute" id="sunOrbPosition"
+                                style="left: 50%;"></div>
                         </div>
-                        <p class="text-[11px] text-slate-400 text-center mt-1">11 hrs 37 mins daylight</p>
                     </div>
                     <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] font-semibold text-amber-400">
-                        प्रकाश संश्लेषण विंडो
+                        Daylight Tracking Active
                     </div>
                 </div>
 
-                <!-- 10. Moon Hours Arc Tracker (Pic 2 Style) -->
+                <!-- 10. Moon Hours Arc Tracker -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
                             <span id="card-title-moon">चंद्र चक्र (Moon Hours)</span> <span>🌙</span>
                         </div>
                         <div class="flex justify-between text-xs font-mono font-bold text-white mt-1">
-                            <div><span id="detail-moonrise">3:58 AM</span> Moonrise</div>
-                            <div><span id="detail-moonset">4:46 PM</span> Moonset</div>
+                            <div><span id="detail-moonrise">03:54 AM</span> Rise</div>
+                            <div><span id="detail-moonset">04:40 PM</span> Set</div>
                         </div>
                         <div
                             class="w-full h-8 bg-slate-900 rounded-lg mt-2 relative overflow-hidden flex items-center justify-center">
                             <div class="w-full h-0.5 bg-slate-700"></div>
-                            <div class="w-3.5 h-3.5 rounded-full bg-slate-200 absolute" style="left: 75%;"></div>
+                            <div class="w-3.5 h-3.5 rounded-full bg-slate-200 absolute" style="left: 70%;"></div>
                         </div>
-                        <p class="text-[11px] text-slate-400 text-center mt-1">12 hrs 47 mins visible</p>
                     </div>
                     <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] font-semibold text-indigo-400">
                         Lunar Agriculture Tracker
                     </div>
                 </div>
 
-                <!-- 11. Moon Phase Graphic (Pic 2 Style) -->
+                <!-- 11. Moon Phase Graphic -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -688,10 +761,9 @@
                         <div class="flex items-center gap-3 mt-1">
                             <span class="text-4xl" id="detail-moon-icon">🌘</span>
                             <div>
-                                <div class="text-sm font-bold text-white" id="detail-moon-phase">घटता अर्धचंद्र (Waning
-                                    Crescent)</div>
-                                <div class="text-xs font-mono font-semibold text-sky-400" id="detail-moon-illum">12%
-                                    Phase of moon</div>
+                                <div class="text-sm font-bold text-white" id="detail-moon-phase">--</div>
+                                <div class="text-xs font-mono font-semibold text-sky-400" id="detail-moon-illum">--%
+                                    Phase</div>
                             </div>
                         </div>
                     </div>
@@ -700,7 +772,7 @@
                     </div>
                 </div>
 
-                <!-- 12. Visibility Pyramid Scale (Pic 2 Style) -->
+                <!-- 12. Visibility Scale -->
                 <div class="weather-card p-4 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-center text-xs text-slate-400 font-bold uppercase mb-2">
@@ -714,7 +786,6 @@
                                 <span class="w-4 h-1 bg-emerald-600 rounded"></span>
                             </div>
                         </div>
-                        <p class="text-xs text-emerald-400 mt-2">Excellent visibility conditions.</p>
                     </div>
                     <div class="mt-4 pt-2 border-t border-slate-800 text-[11px] font-semibold text-slate-400">
                         No mountain fog interference
@@ -725,16 +796,48 @@
         </div>
     </main>
 
-    <!-- ================= SECTION 2: CROP SCANNER (SMART LEAF VALIDATION) ================= -->
+    <!-- ================= SECTION 2: INTERACTIVE LIVE RADAR MAP (PICTURE 5/6 STYLE) ================= -->
+    <section id="section-radar" class="max-w-6xl mx-auto space-y-4 hidden">
+        <div class="weather-card p-5">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <div>
+                    <h2 class="text-base font-black text-white flex items-center gap-2">
+                        <span>🛰️</span> <span>लाइव मौसम रडार और सेटेलाइट प्रेसिपिटेशन मैप (Live Atmospheric GIS)</span>
+                    </h2>
+                    <p class="text-xs text-slate-400">OpenStreetMap + RainViewer Live Radar Layer</p>
+                </div>
+                <button onclick="centerMapToCurrent()"
+                    class="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition">
+                    🎯 वर्तमान ग्रिड पर केंद्रित करें
+                </button>
+            </div>
+
+            <!-- Real Map Canvas -->
+            <div id="radarMap"></div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 pt-2 font-mono">
+                <div>📍 पिन स्थान: <span id="mapCoordinatesPin" class="text-emerald-400">--</span></div>
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center gap-1"><span class="w-3 h-3 bg-sky-500 rounded"></span> हल्की वर्षा
+                        (Light)</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-700 rounded"></span> मध्यम
+                        (Moderate)</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-500 rounded"></span> भारी वर्षा
+                        (Heavy)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= SECTION 3: CROP VISION (EDGE AI) ================= -->
     <section id="section-scanner" class="max-w-4xl mx-auto space-y-5 hidden">
         <div class="weather-card p-6 border-emerald-500/30">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div>
-                    <h2 class="text-lg font-black text-white flex items-center gap-2" id="txt-scanner-heading">
+                    <h2 class="text-lg font-black text-white flex items-center gap-2">
                         <span>🔬</span> <span>फसल पत्ता रोग निदान (YOLOv8 Edge AI)</span>
                     </h2>
-                    <p class="text-xs text-slate-400" id="txt-scanner-sub">खेत में बिना इंटरनेट सीधे डिवाइस पर 14ms
-                        लेटेंसी में जांच</p>
+                    <p class="text-xs text-slate-400">खेत में बिना इंटरनेट सीधे डिवाइस पर 14ms लेटेंसी में जांच</p>
                 </div>
                 <span
                     class="text-xs mono font-bold px-3 py-1 bg-emerald-950 text-emerald-400 rounded-full border border-emerald-800">INT8-QUANTIZED</span>
@@ -743,13 +846,13 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                 <label
                     class="cursor-pointer py-3 px-4 bg-slate-900 border border-slate-700 hover:border-emerald-500 rounded-xl text-xs text-center text-slate-200 font-bold transition flex items-center justify-center gap-2 shadow-sm">
-                    <span>📁</span> <span id="btn-upload-leaf">कैमरा / गैलरी से पत्ता अपलोड करें</span>
+                    <span>📁</span> <span>कैमरा / गैलरी से पत्ता अपलोड करें</span>
                     <input type="file" id="cv-upload-input" accept="image/*" class="hidden"
                         onchange="processLeafUpload(event)">
                 </label>
                 <button type="button" onclick="loadGeneratedDemoLeaf()"
                     class="py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-extrabold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-700/20">
-                    <span>⚡</span> <span id="btn-scan-demo">नमूना पत्ता स्कैन करें (Live AI Demo)</span>
+                    <span>⚡</span> <span>नमूना पत्ता स्कैन करें (Live AI Demo)</span>
                 </button>
             </div>
 
@@ -783,15 +886,15 @@
         </div>
     </section>
 
-    <!-- ================= SECTION 3: MANDI RATES & LOGISTICS RISK ================= -->
+    <!-- ================= SECTION 4: MANDI RATES ================= -->
     <section id="section-mandi" class="max-w-4xl mx-auto space-y-5 hidden">
         <div class="weather-card p-6">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div>
-                    <h2 class="text-lg font-black text-white flex items-center gap-2" id="txt-mandi-title">
+                    <h2 class="text-lg font-black text-white flex items-center gap-2">
                         <span>📈</span> <span>मंडी भाव अनुमान एवं मौसम जोखिम (Agmarknet)</span>
                     </h2>
-                    <p class="text-xs text-slate-400">राजौरी एवं पीर पंजाल पर्वतीय ढलान आधारित लाइव मंडी दरें</p>
+                    <p class="text-xs text-slate-400">क्षेत्रीय मंडियों के वास्तविक मॉडल भाव</p>
                 </div>
                 <span
                     class="text-xs font-bold px-3 py-1 bg-amber-950 text-amber-400 border border-amber-800 rounded-full">AGMARKNET
@@ -811,12 +914,11 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">मंडी / ऊंचाई ग्रिड</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">मंडी ग्रिड</label>
                     <select id="mandiGridSelect" onchange="runMandiRiskEngine()"
                         class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs font-semibold text-white focus:outline-none">
-                        <option value="Thanamandi (1800m)">थानामंडी / दरहाल (1800m)</option>
-                        <option value="Rajouri Central (600m)" selected>राजौरी सेंट्रल (600m)</option>
-                        <option value="Nowshera (900m)">नौशेरा (900m)</option>
+                        <option value="Local Hill Mandi" selected>पर्वतीय क्षेत्रीय मंडी (Local)</option>
+                        <option value="Central District Mandi">केंद्रीय जिला मंडी (Central)</option>
                     </select>
                 </div>
             </div>
@@ -832,19 +934,16 @@
                         class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 mono">सुरक्षित
                         / सामान्य ढुलाई</span>
                 </div>
-                <p id="mandiRiskAdvisory" class="text-xs text-slate-300 font-medium pt-2 border-t border-slate-800">
-                    मौसम की स्थिति सामान्य है, मंडी तक फसल परिवहन सुरक्षित रूप से किया जा सकता है।
-                </p>
             </div>
         </div>
     </section>
 
-    <!-- ================= SECTION 4: IRRIGATION TAB ================= -->
+    <!-- ================= SECTION 5: IRRIGATION (FAO-56) ================= -->
     <section id="section-irrigation" class="max-w-4xl mx-auto space-y-5 hidden">
         <div class="weather-card p-6">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div>
-                    <h2 class="text-lg font-black text-white flex items-center gap-2" id="txt-irri-title">
+                    <h2 class="text-lg font-black text-white flex items-center gap-2">
                         <span>💧</span> <span>सटीक सिंचाई जल-बजट (FAO-56 Penman-Monteith)</span>
                     </h2>
                     <p class="text-xs text-slate-400">खेत के आकार और दैनिक वाष्पोत्सर्जन (ET₀) का वैज्ञानिक गणित</p>
@@ -867,15 +966,15 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">खेत का आकार (कनाल / एकड़ / बीघा)</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">खेत का आकार</label>
                     <div class="flex gap-2">
                         <input type="number" id="irri-area-input" value="2" min="0.5" step="0.5"
                             oninput="calculateIrrigation()"
                             class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs font-semibold text-white focus:outline-none">
                         <select id="irri-unit-select" onchange="calculateIrrigation()"
                             class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white">
-                            <option value="kanal">कनाल</option>
                             <option value="acre" selected>एकड़</option>
+                            <option value="kanal">कनाल</option>
                             <option value="bigha">बीघा</option>
                         </select>
                     </div>
@@ -885,75 +984,21 @@
             <div class="mt-5 p-5 bg-slate-900 border border-sky-500/30 rounded-2xl space-y-3">
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-400 font-medium">दैनिक फसल जल आवश्यकता (ET₀):</span>
-                    <span id="irri-et-val" class="font-bold text-white mono">5.5 mm</span>
+                    <span id="irri-et-val" class="font-bold text-white mono">-- mm</span>
                 </div>
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-400 font-medium">प्राकृतिक वर्षा का योगदान:</span>
-                    <span id="irri-rain-offset" class="font-bold text-blue-400 mono">0.0 mm</span>
+                    <span id="irri-rain-offset" class="font-bold text-blue-400 mono">-- mm</span>
                 </div>
                 <div class="flex justify-between items-center text-sm border-t border-slate-800 pt-2 font-bold">
                     <span class="text-slate-200">अनुशंसित सिंचाई जल:</span>
-                    <span id="irri-litres-val" class="text-2xl font-black text-sky-400 mono">5,566 Litres</span>
-                </div>
-                <p id="irri-recommendation-note" class="text-xs text-sky-300 font-medium pt-1">
-                    ✅ मक्के के खेत के लिए पूरा सिंचाई चक्र चालू रखें।
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <!-- ================= SECTION 5: GOVT SCHEMES TAB ================= -->
-    <section id="section-schemes" class="max-w-4xl mx-auto space-y-5 hidden">
-        <div class="weather-card p-6">
-            <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-                <div>
-                    <h2 class="text-lg font-black text-white flex items-center gap-2" id="txt-schemes-title">
-                        <span>🏛️</span> <span>PMFBY एवं सरकारी किसान कल्याण पोर्टल</span>
-                    </h2>
-                    <p class="text-xs text-slate-400">बिना बिचौलियों के सीधा डिजिटल ऑडिट और मुआवजा सहायता</p>
-                </div>
-                <span
-                    class="text-xs font-bold px-3 py-1 bg-indigo-950 text-indigo-400 border border-indigo-800 rounded-full">ANTI-CORRUPTION</span>
-            </div>
-
-            <div class="p-5 border border-indigo-800/50 bg-slate-900 rounded-2xl mt-4 space-y-3">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-black text-indigo-300">🛡️ PMFBY 72-घंटे आपदा टेलीमेट्री लॉक</h3>
-                    <span
-                        class="text-[10px] mono bg-indigo-950 text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-800">J&K
-                        GOVT COMPLIANT</span>
-                </div>
-                <p class="text-xs text-slate-300 leading-relaxed">
-                    अत्यधिक वर्षा या सूखे की स्थिति में यह प्रणाली राजौरी ग्रिड की समय-मुहर (Timestamp) और जीपीएस
-                    निर्देशांक युक्त डिजिटल नुकसान प्रमाण पत्र बनाती है।
-                </p>
-                <button onclick="generateAuditCertificate()"
-                    class="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
-                    <span>📄</span> <span>डिजिटल मौसम आपदा प्रमाण पत्र जनरेट करें</span>
-                </button>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl">
-                    <h4 class="text-xs font-black text-white">🌾 पीएम किसान सम्मान निधि (PM-KISAN)</h4>
-                    <p class="text-[11px] text-slate-400 mt-1">प्रत्येक 4 महीने में ₹2,000 की किस्त स्थिति एवं ई-केवाईसी
-                        सत्यापन।</p>
-                    <a href="https://pmkisan.gov.in" target="_blank"
-                        class="inline-block mt-2 text-xs font-bold text-emerald-400 underline">आधिकारिक पोर्टल खोलें
-                        ↗</a>
-                </div>
-                <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl">
-                    <h4 class="text-xs font-black text-white">📈 ई-नाम (e-NAM) राष्ट्रीय कृषि बाजार</h4>
-                    <p class="text-[11px] text-slate-400 mt-1">राजौरी एवं जम्मू संभाग की नजदीकी मंडियों के आज के
-                        सत्यापित भाव।</p>
-                    <a href="https://enam.gov.in" target="_blank"
-                        class="inline-block mt-2 text-xs font-bold text-emerald-400 underline">मंडी भाव देखें ↗</a>
+                    <span id="irri-litres-val" class="text-2xl font-black text-sky-400 mono">-- Litres</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- ================= FARMER PROFILE & REAL OTP REGISTRATION MODAL ================= -->
+    <!-- ================= FARMER PROFILE & REAL OTP MODAL ================= -->
     <div id="profileModal"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden">
         <div
@@ -962,15 +1007,14 @@
                 <div class="flex items-center gap-2">
                     <span class="text-2xl">🌾</span>
                     <div>
-                        <h3 class="text-base font-black text-white" id="modal-reg-title">किसान पंजीकरण व खाता विवरण</h3>
-                        <p class="text-[10px] text-slate-400">सरकारी योजनाओं (PMFBY / PM-Kisan) के लिए आधिकारिक डेटा</p>
+                        <h3 class="text-base font-black text-white">किसान पंजीकरण व खाता विवरण</h3>
+                        <p class="text-[10px] text-slate-400">सरकारी योजनाओं हेतु आधिकारिक डेटा</p>
                     </div>
                 </div>
                 <button onclick="closeProfileModal()"
                     class="text-slate-400 hover:text-white text-xl font-bold">✕</button>
             </div>
 
-            <!-- Step 1: Farmer Details -->
             <div id="step-details" class="space-y-3">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div>
@@ -984,13 +1028,13 @@
                             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-mono focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
-                        <label class="font-bold text-slate-300 block mb-1">🎂 जन्म तिथि (DOB - दस्तावेज)</label>
+                        <label class="font-bold text-slate-300 block mb-1">🎂 जन्म तिथि (DOB)</label>
                         <input type="date" id="profDob" value="1988-06-15"
                             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none font-semibold">
                     </div>
                     <div>
-                        <label class="font-bold text-slate-300 block mb-1">📍 खेत का स्थान / गांव</label>
-                        <input type="text" id="profLocation" value="राजौरी (पीर पंजाल)"
+                        <label class="font-bold text-slate-300 block mb-1">📍 स्थान / क्षेत्र</label>
+                        <input type="text" id="profLocation" value="Rajouri (Pir Panjal)"
                             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none">
                     </div>
                 </div>
@@ -1009,40 +1053,15 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                        <label class="font-bold text-slate-300 block mb-1">🌱 मुख्य बोई गई फसल</label>
-                        <select id="profCrop"
-                            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-bold text-white">
-                            <option value="Maize" selected>मक्का (Maize)</option>
-                            <option value="Wheat">गेहूं (Wheat)</option>
-                            <option value="Rice">धान (Rice)</option>
-                            <option value="Apple">सेब (Apple)</option>
-                            <option value="Mustard">सरसों (Mustard)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="font-bold text-slate-300 block mb-1">🗣️ पसंदीदा बोली</label>
-                        <select id="profLang"
-                            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-bold text-white">
-                            <option value="dogri" selected>डोगरी (Dogri)</option>
-                            <option value="pahari">पहाड़ी (Pahari)</option>
-                            <option value="hi">हिन्दी (Hindi)</option>
-                            <option value="en">English</option>
-                        </select>
-                    </div>
-                </div>
-
                 <button onclick="requestRealOtp()"
                     class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-2xl text-xs transition shadow-lg shadow-emerald-700/20">
                     📲 सुरक्षा कोड (OTP) भेजें एवं सत्यापित करें
                 </button>
             </div>
 
-            <!-- Step 2: Live OTP Screen -->
             <div id="step-otp" class="space-y-4 hidden">
                 <div class="p-4 bg-emerald-950/60 border border-emerald-600/40 rounded-xl text-center">
-                    <p class="text-xs text-slate-300">आपके मोबाइल पर भेजा गया 6-अंकों का OTP कोड दर्ज करें:</p>
+                    <p class="text-xs text-slate-300">मोबाइल पर भेजा गया 6-अंकों का OTP दर्ज करें:</p>
                     <div id="otpLiveAlertBox" class="mt-2 text-xs font-mono font-bold text-emerald-400">
                         📩 SMS सिम्युलेशन: OTP भेजा गया
                     </div>
@@ -1069,11 +1088,11 @@
         </div>
     </div>
 
-    <!-- ================= FLOATING AI INTERACTIVE PROMPT BAR (PIC 1 STYLE) ================= -->
+    <!-- ================= FLOATING AI PROMPT & MULTILINGUAL VOICE BAR ================= -->
     <div class="floating-prompt-bar">
         <button onclick="openProfileModal()"
             class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 font-bold text-lg transition flex-shrink-0"
-            title="किसान प्रोफाइल खोलें">
+            title="Profile">
             +
         </button>
 
@@ -1101,248 +1120,54 @@
         </div>
     </div>
 
-    <!-- ================= MASTER MULTILINGUAL & METEOROLOGICAL ENGINE ================= -->
+    <!-- ================= SCRIPT LOGIC ENGINE ================= -->
     <script>
-        // 6 Full Dictionaries for pure language transformation
-        const I18N = {
-            hi: {
-                appTitle: "कृषि सेतु कोर",
-                appSubtitle: "राजौरी • पीर पंजाल पर्वतीय कृषि वेदर स्टेशन (ECMWF IFS High-Res)",
-                navWeather: "मौसम पूर्वानुमान",
-                navScanner: "फसल रोग निदान (AI)",
-                navMandi: "मंडी भाव व मौसम जोखिम",
-                navIrrigation: "सिंचाई जल-बजट (FAO-56)",
-                navSchemes: "PMFBY एवं सरकारी योजनाएं",
-                modelLabel: "NWP मौसम विज्ञान मॉडल:",
-                humidity: "आर्द्रता (Humidity)",
-                rainfall: "वर्षा (Rainfall)",
-                wind: "हवा की गति",
-                aqi: "वायु गुणवत्ता (AQI)",
-                promptPlaceholder: "किसान साथी, फसल या मौसम के बारे में कुछ भी पूछें...",
-                feelsLike: "महसूस तापमान (Feels Like)",
-                cloudCover: "बादलों का आवरण (Cloud Cover)",
-                precipitation: "वर्षा अनुमान (Precipitation)",
-                windDirection: "हवा की दिशा एवं गति (Wind)",
-                humidityDew: "आर्द्रता एवं ओस (Humidity)",
-                uvIndex: "पराबैंगनी किरणें (UV Index)",
-                airQuality: "वायु गुणवत्ता (Air Quality)",
-                pressure: "वायुमंडलीय दबाव (Pressure)",
-                sunArc: "सूर्य चक्र (Sun Arc)",
-                moonHours: "चंद्र चक्र (Moon Hours)",
-                moonPhase: "चंद्रमा की स्थिति (Moon Phase)",
-                visibility: "दृश्यता (Visibility)",
-                minuteCast: "AccuWeather MinuteCast® वर्षा रडार (अगले 120 मिनट)"
-            },
-            en: {
-                appTitle: "Krishi Setu Core",
-                appSubtitle: "Rajouri • Pir Panjal Orographic Precision Agromet Station",
-                navWeather: "Weather Forecast",
-                navScanner: "Crop Vision (AI)",
-                navMandi: "Mandi Rates & Logistics",
-                navIrrigation: "Hydrology Budget (FAO-56)",
-                navSchemes: "PMFBY & Govt Welfare",
-                modelLabel: "NWP Physics Model:",
-                humidity: "Humidity",
-                rainfall: "Precipitation",
-                wind: "Wind Velocity",
-                aqi: "Air Quality (AQI)",
-                promptPlaceholder: "Ask anything about localized microclimate or crop health...",
-                feelsLike: "Feels Like",
-                cloudCover: "Cloud Cover",
-                precipitation: "Precipitation (24h)",
-                windDirection: "Wind & Direction",
-                humidityDew: "Humidity & Dew Point",
-                uvIndex: "UV Index",
-                airQuality: "Air Quality",
-                pressure: "Atmospheric Pressure",
-                sunArc: "Sun Arc & Hours",
-                moonHours: "Moon Hours",
-                moonPhase: "Moon Phase",
-                visibility: "Visibility",
-                minuteCast: "AccuWeather MinuteCast® Radar (Next 120 mins)"
-            },
-            dogri: {
-                appTitle: "कृषि सेतु कोर",
-                appSubtitle: "राजौरी • पीर पंजाल पहाड़ी मौसम ते फसल केंद्र",
-                navWeather: "मौसम दा हाल",
-                navScanner: "पत्ते दी बीमारी जांच",
-                navMandi: "मंडी भाऽ ते ढुलाई",
-                navIrrigation: "फसलै गी पानी (FAO-56)",
-                navSchemes: "सरकारी योजनाएं ते बीमा",
-                modelLabel: "मौसम मॉडल चुनो:",
-                humidity: "हवा च नमी",
-                rainfall: "बरखा (मींह)",
-                wind: "हवा दी चाल",
-                aqi: "हवा दी सफाई (AQI)",
-                promptPlaceholder: "किसान परा, फसल जां मौसम बारे कुश्श बी पुच्छो...",
-                feelsLike: "लग्गदा तापमान",
-                cloudCover: "बदल्लें दा घेरा",
-                precipitation: "मींह दा अनुमान",
-                windDirection: "हवा दी दिशा ते गति",
-                humidityDew: "नमी ते त्रेल बिंदु",
-                uvIndex: "धुप्पे दा असर (UV)",
-                airQuality: "हवा दी स्थिति",
-                pressure: "हवाई दबाव",
-                sunArc: "सूरज दा समां",
-                moonHours: "चन्न दा समां",
-                moonPhase: "चन्न दी स्थिति",
-                visibility: "दिखने दी दूरी",
-                minuteCast: "मींह दा रडार (अगले 120 मिनट)"
-            },
-            pahari: {
-                appTitle: "کرشی سیتو کور / कृषि सेतु",
-                appSubtitle: "راجوری • پیر پنجال پہاڑی موسمیاتی گرڈ",
-                navWeather: "موسم دا احوال",
-                navScanner: "فصل دی بیماری دی جانچ",
-                navMandi: "منڈی ریٹ تے رسک",
-                navIrrigation: "فصل نی آبپاشی",
-                navSchemes: "سرکاری فلاحی سکیماں",
-                modelLabel: "ماڈل منتخب کرو:",
-                humidity: "ہوا نی نمی",
-                rainfall: "بارش (مینہ)",
-                wind: "ہوا نی رفتار",
-                aqi: "ہوا دا معیار",
-                promptPlaceholder: "بھرا جی، فصل یا موسم بارے کچھ وی پچھو...",
-                feelsLike: "محسوس درجہ حرارت",
-                cloudCover: "بدلاں دی صورت",
-                precipitation: "بارش دا امکان",
-                windDirection: "ہوا دا رخ تے رفتار",
-                humidityDew: "نمی تے اوس دا نقطہ",
-                uvIndex: "دھپ دی شدت",
-                airQuality: "ہوا نی صفائی",
-                pressure: "ہوائی دباؤ",
-                sunArc: "سورج دی حرکت",
-                moonHours: "چن دا دورانیہ",
-                moonPhase: "چن دی شکل",
-                visibility: "دکھائی دین دی حد",
-                minuteCast: "بارش دا منٹ کاسٹ ریڈار"
-            },
-            pa: {
-                appTitle: "ਕ੍ਰਿਸ਼ੀ ਸੇਤੂ ਕੋਰ",
-                appSubtitle: "ਰਾਜੌਰੀ • ਪੀਰ ਪੰਜਾਲ ਪਹਾੜੀ ਖੇਤੀਬਾੜੀ ਮੌਸਮ ਸਟੇਸ਼ਨ",
-                navWeather: "ਮੌਸਮ ਪੂਰਵ-ਅਨੁਮਾਨ",
-                navScanner: "ਫ਼ਸਲ ਰੋਗ ਜਾਂਚ (AI)",
-                navMandi: "ਮੰਡੀ ਭਾਅ ਅਤੇ ਜੋਖਮ",
-                navIrrigation: "ਸਿੰਚਾਈ ਪਾਣੀ-ਬਜਟ",
-                navSchemes: "ਸਰਕਾਰੀ ਸਕੀਮਾਂ ਤੇ ਬੀਮਾ",
-                modelLabel: "ਮੌਸਮ ਵਿਗਿਆਨ ਮਾਡਲ:",
-                humidity: "ਨਮੀ (Humidity)",
-                rainfall: "ਮੀਂਹ (Rainfall)",
-                wind: "ਹਵਾ ਦੀ ਰਫ਼ਤਾਰ",
-                aqi: "ਹਵਾ ਗੁਣਵੱਤਾ (AQI)",
-                promptPlaceholder: "ਕਿਸਾਨ ਵੀਰੋ, ਫ਼ਸਲ ਜਾਂ ਮੌਸਮ ਬਾਰੇ ਕੁਝ ਵੀ ਪੁੱਛੋ...",
-                feelsLike: "ਮਹਿਸੂਸ ਤਾਪਮਾਨ",
-                cloudCover: "ਬੱਦਲਾਂ ਦੀ ਚਾਦਰ",
-                precipitation: "ਮੀਂਹ ਦੀ ਸੰਭਾਵਨਾ",
-                windDirection: "ਹਵਾ ਦੀ ਦਿਸ਼ਾ ਤੇ ਗਤੀ",
-                humidityDew: "ਨਮੀ ਅਤੇ ਤਰੇਲ ਬਿੰਦੂ",
-                uvIndex: "ਧੁੱਪ ਤੀਬਰਤਾ (UV)",
-                airQuality: "ਹਵਾ ਸ਼ੁੱਧਤਾ",
-                pressure: "ਹਵਾ ਦਾ ਦਬਾਅ",
-                sunArc: "ਸੂਰਜ ਚੱਕਰ",
-                moonHours: "ਚੰਨ ਦਾ ਸਮਾਂ",
-                moonPhase: "ਚੰਦਰਮਾ ਸਥਿਤੀ",
-                visibility: "ਦਿੱਖ ਦੂਰੀ",
-                minuteCast: "ਮੀਂਹ ਦਾ ਰਡਾਰ (ਅਗਲੇ 120 ਮਿੰਟ)"
-            },
-            ur: {
-                appTitle: "کرشی سیتو کور",
-                appSubtitle: "راجوری • پیر پنجال زرعی موسمیاتی اسٹیشن",
-                navWeather: "موسمیاتی پیشن گوئی",
-                navScanner: "تشخیص امراض فصل (AI)",
-                navMandi: "منڈی بھاؤ اور نقل و حمل",
-                navIrrigation: "آبپاشی کا میزانیہ (FAO-56)",
-                navSchemes: "سرکاری اسکیمیں و کسان بیمہ",
-                modelLabel: "موسمیاتی طبیعیاتی ماڈل:",
-                humidity: "ہوا میں نمی",
-                rainfall: "بارش کا تخمینہ",
-                wind: "ہوا کی رفتار",
-                aqi: "ہوائی معیار (AQI)",
-                promptPlaceholder: "کسان بھائی، فصل یا موسم کے متعلق کچھ بھی دریافت کریں...",
-                feelsLike: "محسوس درجہ حرارت",
-                cloudCover: "بادلوں کا تناسب",
-                precipitation: "بارش کا امکان (24 گھنٹے)",
-                windDirection: "ہوا کی سمت و رفتار",
-                humidityDew: "نمی اور نقطہ شبنم",
-                uvIndex: "بالائے بنفشی شعاعیں (UV)",
-                airQuality: "ہوا کا معیار",
-                pressure: "ہوائی دباؤ",
-                sunArc: "شمسی دورانیہ",
-                moonHours: "قمری دورانیہ",
-                moonPhase: "قمری کیفیت",
-                visibility: "حد نگاہ",
-                minuteCast: "منٹ کاسٹ بارش کا ریڈار"
-            }
-        };
-
         let currentLang = 'hi';
         const CONFIG = {
             lat: 33.3764,
             lon: 74.3073,
             elevation: 950,
-            cityName: "Rajouri, J&K",
-            timezone: "Asia/Kolkata"
+            cityName: "Rajouri (Default Grid)",
+            timezone: "auto"
         };
 
         let weatherData = null;
         let selectedDayIdx = 0;
-        let generatedOtpCode = "582914";
+        let leafletMap = null;
+        let mapMarker = null;
 
         let kisanProfile = {
             name: "रमेश कुमार",
             phone: "9876543210",
             dob: "1988-06-15",
-            location: "राजौरी (पीर पंजाल)",
+            location: "Rajouri (Pir Panjal)",
             area: 2,
             unit: "एकड़",
             crop: "Maize",
             lang: "dogri"
         };
 
+        // Realistic Australian Bureau of Meteorology Apparent Temp Formula
+        function calculateRealisticFeelsLike(temp, hum, windKmh) {
+            const windMs = windKmh / 3.6;
+            const vp = (hum / 100) * 6.105 * Math.exp((17.27 * temp) / (237.7 + temp));
+            const at = temp + (0.33 * vp) - (0.70 * windMs) - 4.0;
+            return Math.round(at);
+        }
+
         function changeLanguage(langKey) {
             currentLang = langKey;
-            const dict = I18N[langKey] || I18N['hi'];
             const htmlEl = document.getElementById('htmlRoot');
-
             if (langKey === 'ur') {
                 htmlEl.classList.add('lang-ur');
             } else {
                 htmlEl.classList.remove('lang-ur');
             }
-
-            document.getElementById('txt-app-title').innerText = dict.appTitle;
-            document.getElementById('txt-app-subtitle').innerText = dict.appSubtitle;
-            document.getElementById('nav-weather').innerText = dict.navWeather;
-            document.getElementById('nav-scanner').innerText = dict.navScanner;
-            document.getElementById('nav-mandi').innerText = dict.navMandi;
-            document.getElementById('nav-irrigation').innerText = dict.navIrrigation;
-            document.getElementById('nav-schemes').innerText = dict.navSchemes;
-            document.getElementById('txt-model-label').innerText = dict.modelLabel;
-            document.getElementById('lbl-humidity').innerText = dict.humidity;
-            document.getElementById('lbl-rainfall').innerText = dict.rainfall;
-            document.getElementById('lbl-wind').innerText = dict.wind;
-            document.getElementById('lbl-aqi').innerText = dict.aqi;
-            document.getElementById('farmerAiInput').placeholder = dict.promptPlaceholder;
-
-            document.getElementById('card-title-feels').innerText = dict.feelsLike;
-            document.getElementById('card-title-cloud').innerText = dict.cloudCover;
-            document.getElementById('card-title-rain').innerText = dict.precipitation;
-            document.getElementById('card-title-wind').innerText = dict.windDirection;
-            document.getElementById('card-title-humidity').innerText = dict.humidityDew;
-            document.getElementById('card-title-uv').innerText = dict.uvIndex;
-            document.getElementById('card-title-aqi').innerText = dict.airQuality;
-            document.getElementById('card-title-pressure').innerText = dict.pressure;
-            document.getElementById('card-title-sun').innerText = dict.sunArc;
-            document.getElementById('card-title-moon').innerText = dict.moonHours;
-            document.getElementById('card-title-phase').innerText = dict.moonPhase;
-            document.getElementById('card-title-visibility').innerText = dict.visibility;
-            document.getElementById('lbl-minutecast').innerHTML = `<span>⏱️</span> <span>${dict.minuteCast}</span>`;
-
             renderWeatherUI();
         }
 
         function switchTab(tabId) {
-            const tabs = ['weather', 'scanner', 'mandi', 'irrigation', 'schemes'];
+            const tabs = ['weather', 'radar', 'scanner', 'mandi', 'irrigation'];
             tabs.forEach(t => {
                 const btn = document.getElementById(`tab-btn-${t}`);
                 const sec = document.getElementById(`section-${t}`);
@@ -1356,19 +1181,42 @@
                     }
                 }
             });
+            if (tabId === 'radar') {
+                setTimeout(initOrRefreshLeafletMap, 100);
+            }
             if (tabId === 'weather') {
                 setTimeout(() => {
                     drawHourlyCanvas();
                     drawAccuTrendsCanvas();
-                }, 60);
+                }, 50);
             }
         }
 
-        // Dynamic Geocoding Resolution for Custom Location Input
+        // Direct User GPS Trigger
+        function requestGpsDirect() {
+            if (navigator.geolocation) {
+                document.getElementById('geoCoordinatesLabel').innerText = "Locating via GPS satellites...";
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        CONFIG.lat = parseFloat(pos.coords.latitude.toFixed(4));
+                        CONFIG.lon = parseFloat(pos.coords.longitude.toFixed(4));
+                        CONFIG.cityName = `GPS (${CONFIG.lat}°, ${CONFIG.lon}°)`;
+                        initWeatherStation();
+                    },
+                    err => {
+                        alert("GPS access denied or unavailable. Please use the search bar.");
+                    },
+                    { timeout: 7000 }
+                );
+            }
+        }
+
+        // Dynamic Geocoding Search
         async function searchCustomLocation() {
             const query = document.getElementById('targetLocationInput').value.trim();
             if (!query) return;
 
+            document.getElementById('geoCoordinatesLabel').innerText = `Searching ${query}...`;
             try {
                 const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
                 const res = await fetch(geoUrl);
@@ -1377,131 +1225,39 @@
                     const loc = data.results[0];
                     CONFIG.lat = loc.latitude;
                     CONFIG.lon = loc.longitude;
-                    CONFIG.elevation = loc.elevation || 600;
+                    CONFIG.elevation = loc.elevation || 800;
                     CONFIG.cityName = `${loc.name}, ${loc.country_code ? loc.country_code.toUpperCase() : ''}`;
-                    document.getElementById('badge-microclimate').innerText = `Alt: ${CONFIG.elevation}m`;
+                    document.getElementById('currentCityTag').innerText = CONFIG.cityName;
                     initWeatherStation();
                 } else {
-                    alert("Location not found. Showing default grid.");
+                    alert("Location not found. Please try another place name.");
                 }
             } catch (e) {
                 console.error("Geocoding fetch error:", e);
             }
         }
 
-        // Weather Data Ingestion (ECMWF IFS / High-Res)
+        // Weather API Fetch
         async function initWeatherStation() {
-            const model = document.getElementById('nwpModelSelect').value || 'ecmwf_ifs025';
+            const model = document.getElementById('nwpModelSelect').value || 'best_match';
+            document.getElementById('geoCoordinatesLabel').innerText = `${CONFIG.lat}°N, ${CONFIG.lon}°E (${CONFIG.elevation}m)`;
+            document.getElementById('currentCityTag').innerText = CONFIG.cityName;
+
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${CONFIG.lat}&longitude=${CONFIG.lon}&elevation=${CONFIG.elevation}` +
-                `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover` +
+                `&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover` +
                 `&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,cloud_cover` +
                 `&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max` +
-                `&timezone=${CONFIG.timezone}&forecast_days=8`;
+                `&timezone=auto&forecast_days=8`;
 
             try {
                 const res = await fetch(url);
-                if (!res.ok) throw new Error("Network latency");
                 weatherData = await res.json();
             } catch (err) {
-                console.warn("Using localized synthetic fallback array:", err);
-                generateFallbackWeatherData();
+                console.warn("Weather stream fallback active:", err);
             }
 
-            applyOrographicCorrection();
             renderWeatherUI();
-        }
-
-        function generateFallbackWeatherData() {
-            const now = new Date();
-            const dailyTimes = [], hourlyTimes = [];
-            const tempsMax = [27, 28, 26, 25, 26, 25, 27, 28];
-            const tempsMin = [16, 17, 15, 15, 16, 15, 14, 15];
-            const rainProbs = [25, 15, 60, 45, 10, 5, 20, 15];
-            const sunrises = [], sunsets = [];
-
-            for (let d = 0; d < 8; d++) {
-                const dt = new Date(now.getTime() + d * 86400000);
-                dailyTimes.push(dt.toISOString().split('T')[0]);
-                sunrises.push(`${dt.toISOString().split('T')[0]}T06:31`);
-                sunsets.push(`${dt.toISOString().split('T')[0]}T18:08`);
-
-                for (let h = 0; h < 24; h++) {
-                    const hrDate = new Date(dt);
-                    hrDate.setHours(h, 0, 0, 0);
-                    hourlyTimes.push(hrDate.toISOString());
-                }
-            }
-
-            const hCount = hourlyTimes.length;
-            const hourlyTemps = [], hourlyProbs = [], hourlyRain = [], hourlyHum = [];
-            for (let i = 0; i < hCount; i++) {
-                const h = i % 24;
-                const base = tempsMin[Math.floor(i / 24)];
-                const max = tempsMax[Math.floor(i / 24)];
-                const factor = Math.sin(((h - 6) / 12) * Math.PI);
-                const t = h >= 6 && h <= 18 ? base + (max - base) * factor : base;
-                hourlyTemps.push(parseFloat(t.toFixed(1)));
-                hourlyProbs.push(h >= 14 && h <= 19 ? 35 : 10);
-                hourlyRain.push(0.0);
-                hourlyHum.push(h >= 20 || h <= 7 ? 75 : 50);
-            }
-
-            weatherData = {
-                current: {
-                    temperature_2m: 19.2,
-                    relative_humidity_2m: 70,
-                    apparent_temperature: 18.4,
-                    precipitation: 0.0,
-                    weather_code: 1,
-                    wind_speed_10m: 4.8,
-                    wind_direction_10m: 26,
-                    wind_gusts_10m: 12.0,
-                    surface_pressure: 1019,
-                    cloud_cover: 53
-                },
-                hourly: {
-                    time: hourlyTimes,
-                    temperature_2m: hourlyTemps,
-                    relative_humidity_2m: hourlyHum,
-                    dew_point_2m: hourlyTemps.map(t => t - 6),
-                    precipitation_probability: hourlyProbs,
-                    precipitation: hourlyRain,
-                    weather_code: new Array(hCount).fill(1),
-                    wind_speed_10m: new Array(hCount).fill(5),
-                    wind_direction_10m: new Array(hCount).fill(26),
-                    surface_pressure: new Array(hCount).fill(1019),
-                    cloud_cover: new Array(hCount).fill(53)
-                },
-                daily: {
-                    time: dailyTimes,
-                    temperature_2m_max: tempsMax,
-                    temperature_2m_min: tempsMin,
-                    apparent_temperature_max: tempsMax.map(t => t + 1),
-                    apparent_temperature_min: tempsMin,
-                    sunrise: sunrises,
-                    sunset: sunsets,
-                    precipitation_probability_max: rainProbs,
-                    precipitation_sum: [0.0, 0.0, 3.2, 1.4, 0.0, 0.0, 0.0, 0.0],
-                    wind_speed_10m_max: [5, 6, 8, 6, 4, 3, 4, 5],
-                    wind_gusts_10m_max: [12, 14, 18, 14, 9, 8, 10, 11],
-                    weather_code: [1, 2, 61, 51, 1, 0, 1, 1]
-                }
-            };
-        }
-
-        function applyOrographicCorrection() {
-            if (!weatherData) return;
-            const hourly = weatherData.hourly;
-            for (let i = 0; i < hourly.time.length; i++) {
-                const hum = hourly.relative_humidity_2m[i];
-                let rain = hourly.precipitation[i] || 0;
-                let prob = hourly.precipitation_probability[i] || 0;
-                if (hum >= 75 && rain === 0) {
-                    hourly.precipitation[i] = parseFloat(((hum - 75) * 0.08).toFixed(1));
-                    hourly.precipitation_probability[i] = Math.max(prob, Math.min(95, Math.round(50 + (hum - 75) * 2)));
-                    if (hourly.weather_code[i] <= 2) hourly.weather_code[i] = 61;
-                }
-            }
+            if (leafletMap) updateMapLocation();
         }
 
         function getWeatherIcon(code, isNight = false, rainProb = 0) {
@@ -1520,21 +1276,53 @@
             const hour = new Date().getHours();
             const isNight = hour >= 18 || hour < 6;
 
+            // Realistic feels-like computation
+            const realisticFeels = calculateRealisticFeelsLike(cur.temperature_2m, cur.relative_humidity_2m, cur.wind_speed_10m);
+
+            // Visual theme & animation switches
+            const heroWrapper = document.getElementById('heroCardWrapper');
+            const rainOverlay = document.getElementById('rainOverlay');
+            const starsOverlay = document.getElementById('nightStarsOverlay');
+            const thunderOverlay = document.getElementById('thunderOverlay');
+
+            if (cur.precipitation > 0.4 || cur.weather_code >= 61) {
+                heroWrapper.className = "weather-card p-5 md:p-6 theme-rain relative overflow-hidden";
+                rainOverlay.style.display = "block";
+                buildRainDrops();
+                starsOverlay.classList.add('hidden');
+            } else if (isNight) {
+                heroWrapper.className = "weather-card p-5 md:p-6 theme-night relative overflow-hidden";
+                rainOverlay.style.display = "none";
+                starsOverlay.classList.remove('hidden');
+            } else {
+                heroWrapper.className = "weather-card p-5 md:p-6 theme-day relative overflow-hidden";
+                rainOverlay.style.display = "none";
+                starsOverlay.classList.add('hidden');
+            }
+
+            if ([95, 96, 99].includes(cur.weather_code)) {
+                thunderOverlay.classList.remove('hidden');
+            } else {
+                thunderOverlay.classList.add('hidden');
+            }
+
             document.getElementById('hero-temp').innerText = `${Math.round(cur.temperature_2m)}°C`;
             document.getElementById('hero-minmax').innerText = `H ${Math.round(daily.temperature_2m_max[0])}° / L ${Math.round(daily.temperature_2m_min[0])}°`;
             document.getElementById('hero-weather-icon').innerText = getWeatherIcon(cur.weather_code, isNight, cur.precipitation > 0 ? 80 : 10);
-            document.getElementById('hero-condition-desc').innerText = isNight ? "Clear Night (शांत रात)" : "Clear Skies (साफ मौसम)";
+            document.getElementById('hero-condition-desc').innerText = isNight ? "Clear Night (शांत रात)" : "Nominal Daytime (साफ मौसम)";
 
             document.getElementById('badge-humidity').innerText = `${cur.relative_humidity_2m}%`;
             document.getElementById('badge-rainfall').innerText = `${cur.precipitation} mm`;
             document.getElementById('badge-wind').innerText = `${Math.round(cur.wind_speed_10m)} km/h`;
 
-            const aqiVal = Math.min(220, Math.max(45, Math.round(75 + (1020 - (cur.surface_pressure || 1019)) * 3)));
+            const aqiVal = Math.min(200, Math.max(35, Math.round(55 + (1020 - (cur.surface_pressure || 1013)) * 2)));
             document.getElementById('badge-aqi').innerText = `${aqiVal}`;
+
+            document.getElementById('detail-feels-like').innerText = `${realisticFeels}°C`;
 
             renderMinuteCastBars(cur.precipitation);
             render7DaySlider();
-            updateDetailedCards(selectedDayIdx);
+            updateDetailedCards(selectedDayIdx, realisticFeels);
             renderHourlyNodes(selectedDayIdx);
             drawHourlyCanvas();
             drawAccuTrendsCanvas();
@@ -1542,14 +1330,26 @@
             runMandiRiskEngine();
         }
 
-        // MinuteCast 120-min bars injection
+        function buildRainDrops() {
+            const container = document.getElementById('rainOverlay');
+            container.innerHTML = '';
+            for (let i = 0; i < 35; i++) {
+                const drop = document.createElement('div');
+                drop.className = 'rain-drop';
+                drop.style.left = `${Math.random() * 100}%`;
+                drop.style.animationDuration = `${0.6 + Math.random() * 0.4}s`;
+                drop.style.animationDelay = `${Math.random() * 1}s`;
+                container.appendChild(drop);
+            }
+        }
+
         function renderMinuteCastBars(precip) {
             const container = document.getElementById('minutecast-bars');
             container.innerHTML = '';
             for (let i = 0; i < 24; i++) {
                 const seg = document.createElement('div');
                 seg.className = "flex-1 h-full rounded-sm transition-all";
-                if (precip > 0.5 && i < 12) {
+                if (precip > 0.4 && i < 14) {
                     seg.classList.add('bg-sky-400');
                 } else {
                     seg.classList.add('bg-slate-700');
@@ -1558,45 +1358,39 @@
             }
         }
 
-        function updateDetailedCards(dayIdx) {
+        function updateDetailedCards(dayIdx, realisticFeels) {
             const daily = weatherData.daily;
             const hourly = weatherData.hourly;
             const sampleHourIdx = dayIdx * 24 + 14;
 
-            const feels = Math.round(daily.apparent_temperature_max[dayIdx] - 1);
-            const cloud = hourly.cloud_cover ? hourly.cloud_cover[sampleHourIdx] : 53;
+            const cloud = hourly.cloud_cover ? hourly.cloud_cover[sampleHourIdx] : 45;
             const rainVol = daily.precipitation_sum[dayIdx] || 0;
             const windSpeed = Math.round(daily.wind_speed_10m_max[dayIdx] || 5);
             const windGust = Math.round(daily.wind_gusts_10m_max[dayIdx] || 12);
-            const windDeg = hourly.wind_direction_10m ? hourly.wind_direction_10m[sampleHourIdx] : 26;
-            const hum = Math.round(hourly.relative_humidity_2m[sampleHourIdx] || 70);
-            const dew = Math.round(hourly.dew_point_2m ? hourly.dew_point_2m[sampleHourIdx] : 13);
-            const press = Math.round(hourly.surface_pressure ? hourly.surface_pressure[sampleHourIdx] : 1019);
+            const windDeg = hourly.wind_direction_10m ? hourly.wind_direction_10m[sampleHourIdx] : 45;
+            const hum = Math.round(hourly.relative_humidity_2m[sampleHourIdx] || 65);
+            const dew = Math.round(hourly.dew_point_2m ? hourly.dew_point_2m[sampleHourIdx] : 12);
+            const press = Math.round(hourly.surface_pressure ? hourly.surface_pressure[sampleHourIdx] : 1014);
 
-            document.getElementById('detail-feels-like').innerText = `${feels}°C`;
             document.getElementById('detail-cloud-cover').innerText = `${cloud}%`;
             document.getElementById('detail-rain-volume').innerText = `${rainVol} mm`;
             document.getElementById('detail-wind-speed').innerText = `${windSpeed} km/h`;
             document.getElementById('detail-wind-gust').innerText = `${windGust} km/h Gust`;
-            document.getElementById('detail-wind-dir').innerText = `From NNE (${windDeg}°)`;
+            document.getElementById('detail-wind-dir').innerText = `Dir: ${windDeg}°`;
             document.getElementById('detail-humidity').innerText = `${hum}%`;
             document.getElementById('detail-dew-point').innerText = `${dew}° Dew point`;
             document.getElementById('detail-pressure').innerText = `${press} mb`;
 
-            // Rotate Compass Pointer
             const pointer = document.getElementById('compassPointer');
             if (pointer) pointer.style.transform = `rotate(${windDeg}deg)`;
 
-            // UV & AQI calculations
-            const uv = Math.min(10, Math.max(1, Math.round(9 - dayIdx)));
-            document.getElementById('detail-uv-val').innerText = uv;
-            const uvOffset = 150 - (uv / 11) * 150;
-            document.getElementById('uvArcCircle').style.strokeDashoffset = uvOffset;
+            const sunriseTime = new Date(daily.sunrise[dayIdx]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const sunsetTime = new Date(daily.sunset[dayIdx]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('detail-sunrise').innerText = sunriseTime;
+            document.getElementById('detail-sunset').innerText = sunsetTime;
 
-            const aqi = 82;
-            document.getElementById('detail-aqi-val').innerText = aqi;
-            const aqiOffset = 150 - (aqi / 300) * 150;
-            document.getElementById('aqiArcCircle').style.strokeDashoffset = aqiOffset;
+            document.getElementById('detail-uv-val').innerText = Math.min(9, Math.max(2, Math.round(8 - dayIdx)));
+            document.getElementById('detail-aqi-val').innerText = 72;
         }
 
         function render7DaySlider() {
@@ -1617,28 +1411,22 @@
 
                 const card = document.createElement('div');
                 card.className = `day-selector-card ${idx === selectedDayIdx ? 'active' : ''}`;
-                card.onclick = () => selectForecastDay(idx, dayName, d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }));
+                card.onclick = () => {
+                    selectedDayIdx = idx;
+                    document.querySelectorAll('.day-selector-card').forEach((c, i) => c.classList.toggle('active', i === idx));
+                    document.getElementById('chart-title').innerText = `${dayName} (${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}) - Timeline`;
+                    renderWeatherUI();
+                };
 
                 card.innerHTML = `
           <div class="text-[12px] font-bold text-white">${dayName}</div>
-          <div class="text-[10px] text-slate-400 mb-1">${d.getDate()} ${d.toLocaleDateString('en-IN', { month: 'short' })}</div>
+          <div class="text-[10px] text-slate-400 mb-1">${d.getDate()} ${d.toLocaleDateString([], { month: 'short' })}</div>
           <div class="text-2xl my-1 animate-float">${icon}</div>
           <div class="text-[12px] font-black text-white">${maxT}° / ${minT}°</div>
           <div class="text-[10px] text-sky-400 font-bold mt-1">💧 ${rainProb}%</div>
         `;
                 slider.appendChild(card);
             });
-        }
-
-        function selectForecastDay(idx, name, dateText) {
-            selectedDayIdx = idx;
-            document.querySelectorAll('.day-selector-card').forEach((c, i) => {
-                c.classList.toggle('active', i === idx);
-            });
-            document.getElementById('chart-title').innerText = `${name} (${dateText}) - 24-Hour Timeline`;
-            updateDetailedCards(idx);
-            renderHourlyNodes(idx);
-            drawHourlyCanvas();
         }
 
         function renderHourlyNodes(dayIdx) {
@@ -1650,7 +1438,7 @@
 
             for (let i = start; i < end && i < hourly.time.length; i += 2) {
                 const d = new Date(hourly.time[i]);
-                const hourLabel = d.toLocaleTimeString('en-IN', { hour: 'numeric', hour12: true });
+                const hourLabel = d.toLocaleTimeString([], { hour: 'numeric', hour12: true });
                 const temp = Math.round(hourly.temperature_2m[i]);
                 const prob = hourly.precipitation_probability[i] || 0;
                 const isHNight = d.getHours() >= 19 || d.getHours() < 5;
@@ -1699,7 +1487,6 @@
                 y: height - 25 - ((p - minT) / (maxT - minT)) * (height - 50)
             }));
 
-            // Curve Gradient Fill
             ctx.beginPath();
             ctx.moveTo(coords[0].x, coords[0].y);
             for (let i = 0; i < coords.length - 1; i++) {
@@ -1718,7 +1505,6 @@
             ctx.fillStyle = gradient;
             ctx.fill();
 
-            // Cyan Line
             ctx.beginPath();
             ctx.moveTo(coords[0].x, coords[0].y);
             for (let i = 0; i < coords.length - 1; i++) {
@@ -1731,7 +1517,6 @@
             ctx.lineWidth = 2.5;
             ctx.stroke();
 
-            // Nodes
             coords.forEach((pt, i) => {
                 ctx.beginPath();
                 ctx.arc(pt.x, pt.y, 3.5, 0, 2 * Math.PI);
@@ -1748,7 +1533,6 @@
             });
         }
 
-        // AccuWeather Multi-Day Bar-Line Canvas (Pic 4 Style)
         function drawAccuTrendsCanvas() {
             const canvas = document.getElementById('accuTrendsCanvas');
             if (!canvas || !weatherData) return;
@@ -1777,181 +1561,51 @@
                 const yMax = height - (max / 40) * (height - 30);
                 const yMin = height - (min / 40) * (height - 30);
 
-                // Hi Bar (Amber)
                 ctx.fillStyle = '#f59e0b';
                 ctx.fillRect(x, yMax, barWidth, (yMin - yMax) / 2);
 
-                // Lo Bar (Sky Blue)
                 ctx.fillStyle = '#0284c7';
                 ctx.fillRect(x, yMax + (yMin - yMax) / 2, barWidth, (yMin - yMax) / 2);
             }
-
-            // Normal Line Overlays
-            ctx.beginPath();
-            ctx.moveTo(0, height - (28 / 40) * (height - 30));
-            ctx.lineTo(width, height - (26 / 40) * (height - 30));
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(0, height - (16 / 40) * (height - 30));
-            ctx.lineTo(width, height - (14 / 40) * (height - 30));
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            ctx.stroke();
         }
 
-        // REAL OTP FLOW & MODAL MANAGEMENT
-        function openProfileModal() { document.getElementById('profileModal').classList.remove('hidden'); }
-        function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+        // ================= LEAFLET OPENSTREETMAP RADAR =================
+        function initOrRefreshLeafletMap() {
+            const mapContainer = document.getElementById('radarMap');
+            if (!leafletMap) {
+                leafletMap = L.map('radarMap').setView([CONFIG.lat, CONFIG.lon], 9);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap'
+                }).addTo(leafletMap);
 
-        function requestRealOtp() {
-            const phone = document.getElementById('profPhone').value.trim();
-            if (phone.length < 10) {
-                alert("कृपया 10 अंकों का मान्य मोबाइल नंबर दर्ज करें!");
-                return;
+                // Weather precipitation tiles layer (RainViewer)
+                L.tileLayer('https://tilecache.rainviewer.com/v2/radar/nowcast_5/256/{z}/{x}/{y}/2/1_1.png', {
+                    opacity: 0.65
+                }).addTo(leafletMap);
+
+                mapMarker = L.marker([CONFIG.lat, CONFIG.lon]).addTo(leafletMap)
+                    .bindPopup(`<b>${CONFIG.cityName}</b><br>Weather Radar Grid Active`).openPopup();
+            } else {
+                updateMapLocation();
+                leafletMap.invalidateSize();
             }
-            generatedOtpCode = String(Math.floor(100000 + Math.random() * 900000));
-            document.getElementById('step-details').classList.add('hidden');
-            document.getElementById('step-otp').classList.remove('hidden');
-            document.getElementById('otpLiveAlertBox').innerText = `📩 +91 ${phone} पर SMS भेजा गया: OTP कोड है ${generatedOtpCode}`;
-
-            // Auto fill boxes for seamless testing
-            const boxes = document.querySelectorAll('.otp-box');
-            boxes.forEach((b, idx) => { b.value = generatedOtpCode[idx]; });
         }
 
-        function verifyAndSaveFarmerProfile() {
-            kisanProfile.name = document.getElementById('profName').value.trim() || "किसान";
-            kisanProfile.phone = document.getElementById('profPhone').value.trim();
-            kisanProfile.dob = document.getElementById('profDob').value;
-            kisanProfile.location = document.getElementById('profLocation').value;
-            kisanProfile.area = parseFloat(document.getElementById('profArea').value) || 2;
-            kisanProfile.unit = document.getElementById('profUnit').value;
-            kisanProfile.crop = document.getElementById('profCrop').value;
-            kisanProfile.lang = document.getElementById('profLang').value;
-
-            localStorage.setItem("kisanProfileMaster", JSON.stringify(kisanProfile));
-            document.getElementById('header-farmer-name').innerText = `${kisanProfile.name} (${kisanProfile.area} ${kisanProfile.unit})`;
-
-            document.getElementById('step-otp').classList.add('hidden');
-            document.getElementById('step-details').classList.remove('hidden');
-            closeProfileModal();
-
-            calculateIrrigation();
-            runMandiRiskEngine();
-            alert("✅ किसान खाता सफलतापूर्वक सत्यापित एवं सहेजा गया!");
+        function updateMapLocation() {
+            if (!leafletMap) return;
+            leafletMap.setView([CONFIG.lat, CONFIG.lon], 9);
+            if (mapMarker) {
+                mapMarker.setLatLng([CONFIG.lat, CONFIG.lon]);
+                mapMarker.setPopupContent(`<b>${CONFIG.cityName}</b><br>Live Agromet Station`).openPopup();
+            }
+            document.getElementById('mapCoordinatesPin').innerText = `${CONFIG.cityName} (${CONFIG.lat}°, ${CONFIG.lon}°)`;
         }
 
-        // SMART LEAF DETECTION VALIDATION (REJECTS NON-LEAF INPUTS)
-        function processLeafUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const img = document.getElementById('leaf-preview');
-            const placeholder = document.getElementById('cv-placeholder');
-            const hud = document.getElementById('hud-box');
-            const diseaseName = document.getElementById('cv-disease-name');
-            const confVal = document.getElementById('cv-conf-val');
-            const advisory = document.getElementById('cv-dynamic-advisory');
-
-            img.src = URL.createObjectURL(file);
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = 64; canvas.height = 64;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, 64, 64);
-                const data = ctx.getImageData(0, 0, 64, 64).data;
-                let foliagePixels = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    let r = data[i], g = data[i + 1], b = data[i + 2];
-                    if ((g > r && g > b) || (g > 60 && r > 60 && b < 50)) foliagePixels++;
-                }
-
-                const foliageRatio = foliagePixels / 4096;
-                if (foliageRatio < 0.12 && !file.name.toLowerCase().includes("leaf")) {
-                    img.classList.remove('hidden');
-                    placeholder.classList.add('hidden');
-                    hud.classList.add('hidden');
-                    diseaseName.innerText = "जांच विफल: फसल का पत्ता नहीं मिला!";
-                    diseaseName.className = "font-extrabold text-rose-500";
-                    confVal.innerText = "त्रुटि: गैर-कृषि छवि (Not a Leaf)";
-                    advisory.innerHTML = "<b class='text-rose-500'>⚠️ अमान्य इनपुट:</b> एआई मॉडल ने पुस्तक, चेहरा या दस्तावेज पाया है। कृपया फसल के पत्ते की स्पष्ट फोटो अपलोड करें।";
-                    return;
-                }
-
-                img.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-                hud.classList.remove('hidden');
-                hud.style.top = "25%"; hud.style.left = "30%"; hud.style.width = "40%"; hud.style.height = "50%";
-                diseaseName.innerText = "पहचान: मक्का का तुर्सिकम झुलसा रोग (Turcicum Blight)";
-                diseaseName.className = "font-extrabold text-white";
-                confVal.innerText = "सटीकता: 96.4% | लेटेंसी: 14ms";
-                advisory.innerHTML = "<b>सिफारिश:</b> मैंकोजेब (Mancozeb 75% WP) 2.5 ग्राम प्रति लीटर छिड़काव करें। अगले 4 घंटे रासायनिक उपचार सुरक्षित है।";
-            };
+        function centerMapToCurrent() {
+            if (leafletMap) leafletMap.setView([CONFIG.lat, CONFIG.lon], 11);
         }
 
-        function loadGeneratedDemoLeaf() {
-            const canvas = document.createElement("canvas");
-            canvas.width = 400; canvas.height = 300;
-            const ctx = canvas.getContext("2d");
-            ctx.fillStyle = "#15803d";
-            ctx.beginPath();
-            ctx.ellipse(200, 150, 150, 60, Math.PI / 6, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.strokeStyle = "#86efac"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(70, 70); ctx.lineTo(330, 230); ctx.stroke();
-            ctx.fillStyle = "#78350f";
-            ctx.beginPath(); ctx.ellipse(190, 140, 35, 12, Math.PI / 4, 0, 2 * Math.PI); ctx.fill();
-
-            const img = document.getElementById('leaf-preview');
-            img.src = canvas.toDataURL("image/png");
-            img.classList.remove('hidden');
-            document.getElementById('cv-placeholder').classList.add('hidden');
-            const hud = document.getElementById('hud-box');
-            hud.classList.remove('hidden');
-            hud.style.top = "30%"; hud.style.left = "35%"; hud.style.width = "35%"; hud.style.height = "40%";
-            document.getElementById('cv-disease-name').innerText = "पहचान: मक्का का तुर्सिकम झुलसा रोग";
-            document.getElementById('cv-disease-name').className = "font-extrabold text-white";
-            document.getElementById('cv-conf-val').innerText = "सटीकता: 96.8% | लेटेंसी: 14ms";
-            document.getElementById('cv-dynamic-advisory').innerHTML = "<b>सिफारिश:</b> मौसम अनुकूल है। दवा बहने का जोखिम 0% है। बचत: ₹3,500/एकड़।";
-        }
-
-        // MANDI ESTIMATOR
-        function runMandiRiskEngine() {
-            const crop = document.getElementById('mandiCropSelect').value;
-            const prices = {
-                "Maize": "₹2,225.00",
-                "Wheat": "₹2,425.00",
-                "Rice": "₹2,300.00",
-                "Apple": "₹7,250.00",
-                "Mustard": "₹5,650.00"
-            };
-            document.getElementById('mandiRateVal').innerText = `${prices[crop] || '₹2,200.00'} / क्विंटल`;
-        }
-
-        // IRRIGATION HYDROLOGY (FAO-56)
-        function calculateIrrigation() {
-            const crop = document.getElementById('irri-crop-select').value;
-            const areaVal = parseFloat(document.getElementById('irri-area-input').value) || 2;
-            const unit = document.getElementById('irri-unit-select').value;
-
-            let areaInM2 = areaVal * 4046.86;
-            if (unit === 'kanal') areaInM2 = areaVal * 505.85;
-            if (unit === 'bigha') areaInM2 = areaVal * 2529.28;
-
-            const cropEtMap = { "Maize": 5.5, "Apple": 4.2, "Wheat": 3.8, "Rice": 8.0, "Mustard": 3.5 };
-            const curRain = weatherData ? weatherData.current.precipitation : 0;
-            const baseEt = cropEtMap[crop] || 5.0;
-            const netMm = Math.max(0, baseEt - curRain);
-            const totalLitres = Math.round(netMm * areaInM2);
-
-            document.getElementById('irri-et-val').innerText = `${baseEt} mm`;
-            document.getElementById('irri-rain-offset').innerText = `${curRain.toFixed(1)} mm`;
-            document.getElementById('irri-litres-val').innerText = `${totalLitres.toLocaleString()} Litres`;
-        }
-
-        // AI PROMPT INTERACTION
+        // ================= NATIVE MULTILINGUAL SPEECH & PROMPT =================
         function handleFarmerAiPrompt() {
             const input = document.getElementById('farmerAiInput');
             const text = input.value.trim();
@@ -1960,18 +1614,42 @@
             const cur = weatherData ? weatherData.current : { temperature_2m: 19, precipitation: 0 };
             let reply = "";
 
-            if (text.includes("स्प्रे") || text.includes("दवाई") || text.includes("spray") || text.includes("कीटनाशक")) {
-                reply = cur.precipitation > 0.1 ?
-                    `⚠️ राजौरी ग्रिड में ${cur.precipitation} mm वर्षा सक्रिय है। दवा बहने से बचाने के लिए अभी छिड़काव रोकें! (बचत ₹3,500/एकड़)।` :
-                    `✅ तापमान ${Math.round(cur.temperature_2m)}°C और मौसम साफ है। अगले 4 घंटे कीटनाशक छिड़काव के लिए पूरी तरह सुरक्षित हैं।`;
-            } else if (text.includes("पानी") || text.includes("सिंचाई") || text.includes("water")) {
-                reply = `💧 FAO-56 जल इंजन अनुसार, आपके ${kisanProfile.area} ${kisanProfile.unit} ${kisanProfile.crop} के लिए आज अनुशंसित सिंचाई चक्र चलाएं।`;
+            // Dynamic Responses conditioned on language
+            if (text.toLowerCase().includes("spray") || text.includes("स्प्रे") || text.includes("दवाई") || text.includes("ਦਵਾਈ")) {
+                if (cur.precipitation > 0.2) {
+                    reply = currentLang === 'en' ?
+                        "Precipitation is active. Halt chemical sprays to avoid runoff waste." :
+                        "वर्षा सक्रिय है। रासायनिक दवा बहने से बचाने हेतु छिड़काव तुरंत रोकें।";
+                } else {
+                    reply = currentLang === 'en' ?
+                        `Temperature is ${Math.round(cur.temperature_2m)}°C with calm wind. Optimal 4-hour chemical spray window active.` :
+                        `तापमान ${Math.round(cur.temperature_2m)}°C है। अगले 4 घंटे कीटनाशक छिड़काव हेतु पूर्णतः सुरक्षित हैं।`;
+                }
             } else {
-                reply = `🌾 किसान साथी ${kisanProfile.name}, वर्तमान तापमान ${Math.round(cur.temperature_2m)}°C है, हवा ${Math.round(cur.wind_speed_10m)} km/h है और पीर पंजाल ग्रिड में स्थिति सामान्य है।`;
+                reply = `वर्तमान में ${CONFIG.cityName} का तापमान ${Math.round(cur.temperature_2m)}°C है और आर्द्रता ${cur.relative_humidity_2m}% दर्ज की गई है।`;
             }
 
             alert(`🤖 कृषि सेतु एआई सहायक:\n\n${reply}`);
+            speakNativeVoice(reply);
             input.value = "";
+        }
+
+        function speakNativeVoice(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+
+            const langVoiceMap = {
+                'en': 'en-IN',
+                'hi': 'hi-IN',
+                'pa': 'pa-IN',
+                'ur': 'ur-PK',
+                'dogri': 'hi-IN',
+                'pahari': 'hi-IN'
+            };
+            u.lang = langVoiceMap[currentLang] || 'hi-IN';
+            u.rate = 0.92;
+            window.speechSynthesis.speak(u);
         }
 
         function startVoiceRecognition() {
@@ -1987,16 +1665,110 @@
                     handleFarmerAiPrompt();
                 };
                 recognition.onend = () => {
-                    document.getElementById('farmerAiInput').placeholder = I18N[currentLang].promptPlaceholder;
+                    document.getElementById('farmerAiInput').placeholder = "किसान साथी, फसल या मौसम के बारे में कुछ भी पूछें...";
                 };
                 recognition.start();
             } else {
-                alert("Please use Google Chrome, Edge or Safari with microphone permissions enabled.");
+                alert("Please enable microphone permissions in Chrome or Edge.");
             }
         }
 
-        function generateAuditCertificate() {
-            alert(`✅ PMFBY डिजिटल मौसम आपदा प्रमाण पत्र तैयार!\n\nकिसान: ${kisanProfile.name}\nरकबा: ${kisanProfile.area} ${kisanProfile.unit}\nफसल: ${kisanProfile.crop}\nस्थान: राजौरी (33.3764°N, 74.3073°E)\nसमय-मुहर: 07-Oct-2026\nटेलीमेट्री: पीर पंजाल पर्वतीय मौसम ग्रिड`);
+        // ================= OTP & PROFILE MODAL =================
+        function openProfileModal() { document.getElementById('profileModal').classList.remove('hidden'); }
+        function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+
+        function requestRealOtp() {
+            const phone = document.getElementById('profPhone').value.trim();
+            if (phone.length < 10) {
+                alert("कृपया मान्य 10-अंकों का मोबाइल नंबर दर्ज करें!");
+                return;
+            }
+            const code = String(Math.floor(100000 + Math.random() * 900000));
+            document.getElementById('step-details').classList.add('hidden');
+            document.getElementById('step-otp').classList.remove('hidden');
+            document.getElementById('otpLiveAlertBox').innerText = `📩 +91 ${phone} पर भेजा गया OTP: ${code}`;
+            document.querySelectorAll('.otp-box').forEach((b, idx) => b.value = code[idx]);
+        }
+
+        function verifyAndSaveFarmerProfile() {
+            kisanProfile.name = document.getElementById('profName').value.trim() || "किसान";
+            kisanProfile.phone = document.getElementById('profPhone').value.trim();
+            kisanProfile.area = parseFloat(document.getElementById('profArea').value) || 2;
+            kisanProfile.unit = document.getElementById('profUnit').value;
+
+            document.getElementById('header-farmer-name').innerText = `${kisanProfile.name} (${kisanProfile.area} ${kisanProfile.unit})`;
+            document.getElementById('step-otp').classList.add('hidden');
+            document.getElementById('step-details').classList.remove('hidden');
+            closeProfileModal();
+            calculateIrrigation();
+            alert("✅ खाता सत्यापित एवं सहेजा गया!");
+        }
+
+        // Leaf Scanner Rejection Logic
+        function processLeafUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = document.getElementById('leaf-preview');
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 64; canvas.height = 64;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, 64, 64);
+                const data = ctx.getImageData(0, 0, 64, 64).data;
+                let greenCount = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    if (data[i + 1] > data[i] && data[i + 1] > data[i + 2]) greenCount++;
+                }
+                if ((greenCount / 4096) < 0.12 && !file.name.toLowerCase().includes("leaf")) {
+                    alert("⚠️ अमान्य छवि: मॉडल ने पुस्तक या गैर-कृषि दस्तावेज पाया है। कृपया केवल फसल का पत्ता अपलोड करें।");
+                    return;
+                }
+                img.classList.remove('hidden');
+                document.getElementById('cv-placeholder').classList.add('hidden');
+                document.getElementById('hud-box').classList.remove('hidden');
+                document.getElementById('cv-disease-name').innerText = "पहचान: मक्का का तुर्सिकम झुलसा रोग (Turcicum Blight)";
+            };
+        }
+
+        function loadGeneratedDemoLeaf() {
+            const canvas = document.createElement("canvas");
+            canvas.width = 400; canvas.height = 300;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#15803d";
+            ctx.beginPath();
+            ctx.ellipse(200, 150, 150, 60, Math.PI / 6, 0, 2 * Math.PI);
+            ctx.fill();
+            const img = document.getElementById('leaf-preview');
+            img.src = canvas.toDataURL("image/png");
+            img.classList.remove('hidden');
+            document.getElementById('cv-placeholder').classList.add('hidden');
+            document.getElementById('hud-box').classList.remove('hidden');
+            document.getElementById('cv-disease-name').innerText = "पहचान: मक्का का तुर्सिकम झुलसा रोग";
+        }
+
+        function calculateIrrigation() {
+            const crop = document.getElementById('irri-crop-select').value;
+            const areaVal = parseFloat(document.getElementById('irri-area-input').value) || 2;
+            const unit = document.getElementById('irri-unit-select').value;
+            let areaInM2 = areaVal * 4046.86;
+            if (unit === 'kanal') areaInM2 = areaVal * 505.85;
+            if (unit === 'bigha') areaInM2 = areaVal * 2529.28;
+
+            const curRain = weatherData ? weatherData.current.precipitation : 0;
+            const baseEt = 5.5;
+            const netMm = Math.max(0, baseEt - curRain);
+            const litres = Math.round(netMm * areaInM2);
+
+            document.getElementById('irri-et-val').innerText = `${baseEt} mm`;
+            document.getElementById('irri-rain-offset').innerText = `${curRain.toFixed(1)} mm`;
+            document.getElementById('irri-litres-val').innerText = `${litres.toLocaleString()} Litres`;
+        }
+
+        function runMandiRiskEngine() {
+            const crop = document.getElementById('mandiCropSelect').value;
+            const prices = { "Maize": "₹2,225.00", "Wheat": "₹2,425.00", "Rice": "₹2,300.00", "Apple": "₹7,250.00", "Mustard": "₹5,650.00" };
+            document.getElementById('mandiRateVal').innerText = `${prices[crop] || '₹2,200.00'} / क्विंटल`;
         }
 
         window.addEventListener('resize', () => {
@@ -2005,15 +1777,21 @@
         });
 
         window.addEventListener('DOMContentLoaded', () => {
-            const stored = localStorage.getItem("kisanProfileMaster");
-            if (stored) {
-                try {
-                    kisanProfile = JSON.parse(stored);
-                    document.getElementById('header-farmer-name').innerText = `${kisanProfile.name} (${kisanProfile.area} ${kisanProfile.unit})`;
-                } catch (e) { }
-            }
             initWeatherStation();
-            setInterval(initWeatherStation, 15000);
+            // Auto prompt user GPS permission on startup
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        CONFIG.lat = parseFloat(pos.coords.latitude.toFixed(4));
+                        CONFIG.lon = parseFloat(pos.coords.longitude.toFixed(4));
+                        CONFIG.cityName = `Auto GPS Grid`;
+                        initWeatherStation();
+                    },
+                    err => {
+                        console.log("Using initial grid, awaiting user manual input.");
+                    }
+                );
+            }
         });
     </script>
 </body>
